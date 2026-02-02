@@ -22,6 +22,22 @@ public partial class GameEngine : Node
     private Character? currentPlayer;
 
     /// <summary>
+    /// Pending notifications to show the player (team events, important world events, etc.)
+    /// </summary>
+    public static Queue<string> PendingNotifications { get; } = new();
+
+    /// <summary>
+    /// Add a notification to be shown to the player
+    /// </summary>
+    public static void AddNotification(string message)
+    {
+        if (!string.IsNullOrWhiteSpace(message))
+        {
+            PendingNotifications.Enqueue(message);
+        }
+    }
+
+    /// <summary>
     /// Flag indicating an intentional exit (quit from menu) vs unexpected termination
     /// </summary>
     public static bool IsIntentionalExit { get; private set; } = false;

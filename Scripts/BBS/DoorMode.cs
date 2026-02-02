@@ -13,6 +13,7 @@ namespace UsurperRemake.BBS
         private static SocketTerminal? _socketTerminal;
         private static BBSTerminalAdapter? _terminalAdapter;
         private static bool _forceStdio = false;
+        private static string? _forceFossilPort = null; // Force FOSSIL mode on this COM port
 
         public static BBSSessionInfo? SessionInfo => _sessionInfo;
         public static BBSTerminalAdapter? TerminalAdapter => _terminalAdapter;
@@ -68,6 +69,17 @@ namespace UsurperRemake.BBS
                 if (arg == "--stdio")
                 {
                     _forceStdio = true;
+                    continue; // Keep processing other args
+                }
+
+                // --fossil or --com forces FOSSIL/serial mode on specified COM port
+                // Use when BBS uses FOSSIL driver for door I/O
+                if ((arg == "--fossil" || arg == "--com") && i + 1 < args.Length)
+                {
+                    _forceFossilPort = args[i + 1].ToUpperInvariant();
+                    if (!_forceFossilPort.StartsWith("COM"))
+                        _forceFossilPort = "COM" + _forceFossilPort; // Allow just number
+                    i++; // Skip the port arg
                     continue; // Keep processing other args
                 }
 
@@ -182,6 +194,40 @@ namespace UsurperRemake.BBS
                     _sessionInfo.CommType = ConnectionType.Local;
                 }
 
+                // If --fossil flag was used, force serial/FOSSIL mode
+                if (!string.IsNullOrEmpty(_forceFossilPort))
+                {
+                    Console.Error.WriteLine($"Forcing FOSSIL mode on {_forceFossilPort}");
+                    _sessionInfo.CommType = ConnectionType.Serial;
+                    _sessionInfo.ComPort = _forceFossilPort;
+                }
+
+                // Use serial terminal for FOSSIL/COM port connections
+                if (_sessionInfo.CommType == ConnectionType.Serial)
+                {
+                    Console.Error.WriteLine($"Using Serial/FOSSIL mode on {_sessionInfo.ComPort}");
+                    var serialTerminal = new SerialTerminal(_sessionInfo);
+
+                    if (!serialTerminal.Initialize())
+                    {
+                        Console.Error.WriteLine("Failed to initialize serial terminal");
+                        Console.Error.WriteLine("Falling back to local console mode");
+                        _sessionInfo.CommType = ConnectionType.Local;
+
+                        // Fall back to socket terminal in local mode
+                        _socketTerminal = new SocketTerminal(_sessionInfo);
+                        _socketTerminal.Initialize();
+                        _terminalAdapter = new BBSTerminalAdapter(_socketTerminal, _forceStdio);
+                    }
+                    else
+                    {
+                        _terminalAdapter = new BBSTerminalAdapter(serialTerminal);
+                    }
+
+                    return _terminalAdapter;
+                }
+
+                // Use socket terminal for telnet or local connections
                 _socketTerminal = new SocketTerminal(_sessionInfo);
 
                 if (!_socketTerminal.Initialize())
@@ -287,11 +333,14 @@ namespace UsurperRemake.BBS
             Console.WriteLine("  --node, -n <dir>     Search node directory for drop files");
             Console.WriteLine("  --local, -l          Run in local mode (no BBS connection)");
             Console.WriteLine("  --stdio              Use Standard I/O instead of socket (for Synchronet)");
+            Console.WriteLine("  --fossil <port>      Force FOSSIL/serial mode on COM port (e.g., COM1)");
+            Console.WriteLine("  --com <port>         Same as --fossil");
             Console.WriteLine("");
             Console.WriteLine("Examples:");
             Console.WriteLine("  UsurperReborn --door /sbbs/node1/door32.sys");
             Console.WriteLine("  UsurperReborn --node /sbbs/node1");
             Console.WriteLine("  UsurperReborn -d C:\\SBBS\\NODE1\\");
+            Console.WriteLine("  UsurperReborn --doorsys door.sys --fossil COM1");
             Console.WriteLine("");
             Console.WriteLine("Drop File Support:");
             Console.WriteLine("  DOOR32.SYS - Modern format with socket handle (recommended)");
@@ -307,6 +356,11 @@ namespace UsurperRemake.BBS
             Console.WriteLine("  Drop File Type: Door32.sys");
             Console.WriteLine("  I/O Method: Standard");
             Console.WriteLine("  Native Executable: Yes");
+            Console.WriteLine("");
+            Console.WriteLine("For FOSSIL-based BBS (EleBBS, etc.):");
+            Console.WriteLine("  Command: UsurperReborn --doorsys %f --fossil COM1");
+            Console.WriteLine("  Drop File Type: Door.sys");
+            Console.WriteLine("  The COM port should match your FOSSIL driver's virtual port");
             Console.WriteLine("");
         }
 

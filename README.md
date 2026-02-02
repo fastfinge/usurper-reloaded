@@ -1,6 +1,6 @@
 # Usurper Reborn
 
-## ALPHA v0.16 - Steam Integration
+## ALPHA v0.17 - FOSSIL Support
 
 **FREE AND OPEN SOURCE SOFTWARE - GPL v2 Licensed**
 

@@ -3046,8 +3046,8 @@ terminal.SetColor("darkgray");
             return;
         }
 
-        // Find dead allies
-                List<NPC> deadMembers = new List<NPC>();
+        // Find dead allies (check IsDead flag for permanent death, not IsAlive which is just HP > 0)
+        List<NPC> deadMembers = new List<NPC>();
 
         var allWorldNPCs = NPCSpawnSystem.Instance?.ActiveNPCs;
 
@@ -3056,8 +3056,9 @@ terminal.SetColor("darkgray");
             foreach (var spouse in romance.Spouses)
             {
                 var npc = allWorldNPCs.FirstOrDefault(n => n.ID == spouse.NPCId);
-                
-                if (npc != null && !npc.IsAlive)
+
+                // Check IsDead (permanent death) OR !IsAlive (currently at 0 HP)
+                if (npc != null && (npc.IsDead || !npc.IsAlive))
                 {
                     deadMembers.Add(npc);
                 }
@@ -3066,8 +3067,9 @@ terminal.SetColor("darkgray");
             foreach (var lover in romance.CurrentLovers)
             {
                 var npc = allWorldNPCs.FirstOrDefault(n => n.ID == lover.NPCId);
-                
-                if (npc != null && !npc.IsAlive && !deadMembers.Contains(npc))
+
+                // Check IsDead (permanent death) OR !IsAlive (currently at 0 HP)
+                if (npc != null && (npc.IsDead || !npc.IsAlive) && !deadMembers.Contains(npc))
                 {
                     deadMembers.Add(npc);
                 }

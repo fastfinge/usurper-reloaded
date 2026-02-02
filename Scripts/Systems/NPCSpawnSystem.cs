@@ -559,12 +559,13 @@ namespace UsurperRemake.Systems
         }
 
         /// <summary>
-        /// Get an NPC by name
+        /// Get an NPC by name (excludes dead NPCs by default)
         /// </summary>
-        public NPC? GetNPCByName(string name)
+        public NPC? GetNPCByName(string name, bool includeDead = false)
         {
             return spawnedNPCs.FirstOrDefault(npc =>
-                npc.Name2.Equals(name, StringComparison.OrdinalIgnoreCase));
+                npc.Name2.Equals(name, StringComparison.OrdinalIgnoreCase) &&
+                (includeDead || !npc.IsDead));
         }
 
         /// <summary>

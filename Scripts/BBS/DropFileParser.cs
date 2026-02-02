@@ -12,6 +12,7 @@ namespace UsurperRemake.BBS
         // Connection info
         public ConnectionType CommType { get; set; } = ConnectionType.Local;
         public int SocketHandle { get; set; } = -1;
+        public string ComPort { get; set; } = ""; // COM port name for FOSSIL/serial (e.g., "COM1")
         public int BaudRate { get; set; } = 0;
         public int NodeNumber { get; set; } = 1;
 
@@ -193,6 +194,8 @@ namespace UsurperRemake.BBS
             if (comPort.StartsWith("COM") && comPort != "COM0:" && comPort != "COM0")
             {
                 info.CommType = ConnectionType.Serial;
+                // Store COM port name without colon (e.g., "COM1:" -> "COM1")
+                info.ComPort = comPort.TrimEnd(':');
             }
 
             // Line 2: Baud rate

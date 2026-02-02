@@ -2116,6 +2116,14 @@ public class WorldSimulator
                 NewsSystem.Instance.Newsy(true, $"{member.Name} abandoned '{oldTeam}'!");
                 // GD.Print($"[WorldSim] {member.Name} left team '{oldTeam}'");
 
+                // Notify player if this was their teammate
+                var player = GameEngine.Instance?.CurrentPlayer as Player;
+                if (player != null && !string.IsNullOrEmpty(player.Team) &&
+                    player.Team.Equals(oldTeam, StringComparison.OrdinalIgnoreCase))
+                {
+                    GameEngine.AddNotification($"{member.DisplayName} has abandoned your team!");
+                }
+
                 // Check if team is now empty
                 var remainingMembers = npcs.Count(n => n.Team == oldTeam && n.IsAlive);
                 if (remainingMembers == 0)

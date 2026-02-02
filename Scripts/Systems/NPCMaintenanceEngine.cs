@@ -484,11 +484,27 @@ public class NPCMaintenanceEngine : Node
                 {
                     npc.Team = betterGang;
                     GenerateGangNews($"{npc.DisplayName} has defected from {oldGang} to {betterGang}!");
+
+                    // Notify player if this was their teammate
+                    var player = GameEngine.Instance?.CurrentPlayer as Player;
+                    if (player != null && !string.IsNullOrEmpty(player.Team) &&
+                        player.Team.Equals(oldGang, StringComparison.OrdinalIgnoreCase))
+                    {
+                        GameEngine.AddNotification($"{npc.DisplayName} has defected to {betterGang}!");
+                    }
                 }
                 else
                 {
                     npc.Team = "";
                     GenerateGangNews($"{npc.DisplayName} has left {oldGang} and gone independent.");
+
+                    // Notify player if this was their teammate
+                    var player = GameEngine.Instance?.CurrentPlayer as Player;
+                    if (player != null && !string.IsNullOrEmpty(player.Team) &&
+                        player.Team.Equals(oldGang, StringComparison.OrdinalIgnoreCase))
+                    {
+                        GameEngine.AddNotification($"{npc.DisplayName} has left your team!");
+                    }
                 }
             }
             // Low loyalty - reduced contribution

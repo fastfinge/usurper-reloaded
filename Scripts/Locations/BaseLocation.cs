@@ -63,6 +63,9 @@ public abstract class BaseLocation
         AchievementSystem.CheckAchievements(player);
         await AchievementSystem.ShowPendingNotifications(term);
 
+        // Show any pending game notifications (team events, etc.)
+        await ShowPendingGameNotifications(term);
+
         // Ensure NPCs are initialized (safety check)
         if (NPCSpawnSystem.Instance.ActiveNPCs.Count == 0)
         {
@@ -75,6 +78,38 @@ public abstract class BaseLocation
 
         // Main location loop
         await LocationLoop();
+    }
+
+    /// <summary>
+    /// Show any pending game notifications (team events, important world events, etc.)
+    /// </summary>
+    private async Task ShowPendingGameNotifications(TerminalEmulator term)
+    {
+        if (GameEngine.PendingNotifications.Count == 0) return;
+
+        var notifications = new List<string>();
+        while (GameEngine.PendingNotifications.Count > 0)
+        {
+            notifications.Add(GameEngine.PendingNotifications.Dequeue());
+        }
+
+        term.WriteLine("");
+        term.SetColor("bright_yellow");
+        term.WriteLine("╔════════════════════════════════════════════════════════════════════════════╗");
+        term.WriteLine("║                              IMPORTANT NEWS                                ║");
+        term.WriteLine("╠════════════════════════════════════════════════════════════════════════════╣");
+
+        foreach (var notification in notifications)
+        {
+            term.SetColor("white");
+            term.WriteLine($"║  {notification,-74}║");
+        }
+
+        term.SetColor("bright_yellow");
+        term.WriteLine("╚════════════════════════════════════════════════════════════════════════════╝");
+        term.WriteLine("");
+
+        await term.PressAnyKey();
     }
 
     /// <summary>
