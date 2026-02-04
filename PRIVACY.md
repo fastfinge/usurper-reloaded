@@ -57,7 +57,7 @@ Analytics data is retained for the duration of the alpha/beta testing period to 
 ## Auto-Update Feature
 
 The game checks for updates by contacting GitHub's public API:
-- `https://api.github.com/repos/binary-knight/usurper-reloaded/releases/latest`
+- `https://api.github.com/repos/binary-knight/usurper-reborn/releases/latest`
 
 This check:
 - Sends your game version and a standard User-Agent header
@@ -99,12 +99,12 @@ This game is open source. You can review exactly what data is collected by exami
 - `Scripts/Systems/TelemetrySystem.cs` - Telemetry implementation
 - `Scripts/Systems/VersionChecker.cs` - Update checker
 
-Source code: https://github.com/binary-knight/usurper-reloaded
+Source code: https://github.com/binary-knight/usurper-reborn
 
 ## Contact
 
 For privacy questions or concerns:
-- Open an issue: https://github.com/binary-knight/usurper-reloaded/issues
+- Open an issue: https://github.com/binary-knight/usurper-reborn/issues
 - Email: [Add your contact email if desired]
 
 ## Changes to This Policy

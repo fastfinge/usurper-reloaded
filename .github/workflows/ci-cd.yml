@@ -76,11 +76,11 @@ jobs:
       - name: Create GPL compliance source archive
         run: |
           # Create source code archive for GPL compliance
-          git archive --format=zip --prefix=usurper-reloaded-source/ HEAD > usurper-reloaded-source.zip
+          git archive --format=zip --prefix=usurper-reborn-source/ HEAD > usurper-reborn-source.zip
           
           # Create a GPL notice file
           cat > GPL_NOTICE.txt << 'EOF'
-          USURPER RELOADED - GPL v2 COMPLIANCE NOTICE
+          USURPER REBORN - GPL v2 COMPLIANCE NOTICE
           ============================================
           
           This software is distributed under the GNU General Public License v2.
@@ -94,8 +94,8 @@ jobs:
           - Distribute modified versions under the same license
           
           SOURCE CODE LOCATION:
-          - Full source: usurper-reloaded-source.zip (included)
-          - Online repository: https://github.com/binary-knight/usurper-reloaded
+          - Full source: usurper-reborn-source.zip (included)
+          - Online repository: https://github.com/binary-knight/usurper-reborn
           
           LICENSE:
           See LICENSE file for complete GPL v2 terms and conditions.
@@ -183,29 +183,29 @@ jobs:
             -p:PublishSingleFile=true -p:SelfContained=true -p:InvariantGlobalization=true
           
           # Create macOS app bundle structure
-          mkdir -p "build/mac/usurper-reloaded.app/Contents/MacOS"
-          mkdir -p "build/mac/usurper-reloaded.app/Contents/Resources"
+          mkdir -p "build/mac/usurper-reborn.app/Contents/MacOS"
+          mkdir -p "build/mac/usurper-reborn.app/Contents/Resources"
           
           # Copy executable
           if [ -f "build/mac-temp/UsurperReborn" ]; then
-            cp "build/mac-temp/UsurperReborn" "build/mac/usurper-reloaded.app/Contents/MacOS/usurper-reloaded"
-            chmod +x "build/mac/usurper-reloaded.app/Contents/MacOS/usurper-reloaded"
+            cp "build/mac-temp/UsurperReborn" "build/mac/usurper-reborn.app/Contents/MacOS/usurper-reborn"
+            chmod +x "build/mac/usurper-reborn.app/Contents/MacOS/usurper-reborn"
             
             # Copy other files
-            cp -r build/mac-temp/* build/mac/usurper-reloaded.app/Contents/Resources/ 2>/dev/null || true
+            cp -r build/mac-temp/* build/mac/usurper-reborn.app/Contents/Resources/ 2>/dev/null || true
             
             # Create Info.plist
-            cat > "build/mac/usurper-reloaded.app/Contents/Info.plist" << 'EOF'
+            cat > "build/mac/usurper-reborn.app/Contents/Info.plist" << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
             <key>CFBundleExecutable</key>
-            <string>usurper-reloaded</string>
+            <string>usurper-reborn</string>
             <key>CFBundleIdentifier</key>
             <string>com.usurperreloaded.game</string>
             <key>CFBundleName</key>
-            <string>Usurper Reloaded</string>
+            <string>Usurper Reborn</string>
             <key>CFBundleVersion</key>
             <string>1.0</string>
             <key>CFBundleShortVersionString</key>
@@ -220,7 +220,7 @@ jobs:
 
             # Create zip file
             cd "build/mac"
-            zip -r "usurper-reloaded.zip" "usurper-reloaded.app" "usurper-reborn-mac.command"
+            zip -r "usurper-reborn.zip" "usurper-reborn.app" "usurper-reborn-mac.command"
             cd "../.."
 
             echo "✅ macOS build successful"
@@ -236,11 +236,11 @@ jobs:
           for dir in build/windows-x64 build/windows-x86 build/linux-x64 build/linux-arm64 build/mac; do
             cp LICENSE "$dir/"
             cp GPL_NOTICE.txt "$dir/"
-            cp usurper-reloaded-source.zip "$dir/"
+            cp usurper-reborn-source.zip "$dir/"
           done
 
           # Create README files for each platform
-          echo "# Usurper Reloaded - Complete Medieval World Simulation" > build/windows-x64/README.txt
+          echo "# Usurper Reborn - Complete Medieval World Simulation" > build/windows-x64/README.txt
           echo "" >> build/windows-x64/README.txt
           echo "**FREE AND OPEN SOURCE SOFTWARE - GPL v2 Licensed**" >> build/windows-x64/README.txt
           echo "" >> build/windows-x64/README.txt
@@ -250,7 +250,7 @@ jobs:
           echo "" >> build/windows-x64/README.txt
           echo "## GPL v2 COMPLIANCE" >> build/windows-x64/README.txt
           echo "- This software is licensed under GPL v2" >> build/windows-x64/README.txt
-          echo "- Complete source code included: usurper-reloaded-source.zip" >> build/windows-x64/README.txt
+          echo "- Complete source code included: usurper-reborn-source.zip" >> build/windows-x64/README.txt
           echo "- License terms: LICENSE file" >> build/windows-x64/README.txt
           echo "- Full notice: GPL_NOTICE.txt" >> build/windows-x64/README.txt
           echo "" >> build/windows-x64/README.txt
@@ -263,7 +263,7 @@ jobs:
           echo "This is truly FREE software - you own it completely!" >> build/windows-x64/README.txt
           echo "" >> build/windows-x64/README.txt
           echo "## Repository" >> build/windows-x64/README.txt
-          echo "https://github.com/binary-knight/usurper-reloaded" >> build/windows-x64/README.txt
+          echo "https://github.com/binary-knight/usurper-reborn" >> build/windows-x64/README.txt
 
           # Copy README to other platforms
           cp build/windows-x64/README.txt build/windows-x86/README.txt
@@ -396,7 +396,7 @@ jobs:
           "appbuild"
           {
             "appid" "${STEAM_APP_ID}"
-            "desc" "Usurper Reloaded v${{ github.ref_name || 'development' }} (GPL v2)"
+            "desc" "Usurper Reborn v${{ github.ref_name || 'development' }} (GPL v2)"
             "buildoutput" "../steam-logs/"
             "contentroot" ""
             "setlive" ""
@@ -456,7 +456,7 @@ jobs:
       - name: Create release notes
         run: |
           cat > steam-build/RELEASE_NOTES.md << 'EOF'
-          # Usurper Reloaded - Complete Medieval World Simulation
+          # Usurper Reborn - Complete Medieval World Simulation
           
           **🆓 FREE AND OPEN SOURCE SOFTWARE - GPL v2 Licensed**
           
@@ -500,7 +500,7 @@ jobs:
           
           **SOURCE CODE INCLUDED:**
           - Complete source code archive included with every download
-          - Online repository: https://github.com/binary-knight/usurper-reloaded
+          - Online repository: https://github.com/binary-knight/usurper-reborn
           - All build scripts, assets, and documentation included
           
           **This is truly FREE software - you own it completely!**
@@ -569,7 +569,7 @@ jobs:
     steps:
       - name: Generate build report
         run: |
-          echo " **Usurper Reloaded CI/CD Pipeline Report**"
+          echo " **Usurper Reborn CI/CD Pipeline Report**"
           echo ""
           echo " **Build Status Summary:**"
           echo "-  .NET Build: SUCCESS"

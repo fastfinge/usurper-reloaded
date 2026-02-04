@@ -306,7 +306,7 @@ If using Standard I/O mode, the game will use stdin/stdout instead of the socket
 ## Support
 
 - **Discord**: https://discord.gg/EZhwgDT6Ta
-- **GitHub Issues**: https://github.com/binary-knight/usurper-reloaded/issues
+- **GitHub Issues**: https://github.com/binary-knight/usurper-reborn/issues
 
 ---
 

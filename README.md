@@ -9,8 +9,8 @@ A faithful recreation of the classic 1993 BBS door game "Usurper" by Jakob Danga
 ### Quick Start for Alpha Testers
 
 **Download the latest build for your platform:**
-- Go to [Actions](https://github.com/binary-knight/usurper-reloaded/actions) → Latest successful run → Download artifact
-- Or check [Releases](https://github.com/binary-knight/usurper-reloaded/releases) for packaged builds
+- Go to [Actions](https://github.com/binary-knight/usurper-reborn/actions) → Latest successful run → Download artifact
+- Or check [Releases](https://github.com/binary-knight/usurper-reborn/releases) for packaged builds
 
 **Run the game:**
 - **Windows**: Run `UsurperReborn.bat` or `UsurperReborn.exe`
@@ -19,8 +19,8 @@ A faithful recreation of the classic 1993 BBS door game "Usurper" by Jakob Danga
 
 **Build from source:**
 ```bash
-git clone https://github.com/binary-knight/usurper-reloaded.git
-cd usurper-reloaded
+git clone https://github.com/binary-knight/usurper-reborn.git
+cd usurper-reborn
 dotnet publish usurper-reloaded.csproj -c Release -o publish
 ./publish/UsurperReborn.exe  # or ./publish/UsurperReborn on Linux/Mac
 ```
@@ -160,8 +160,8 @@ This is free and open source software - you can build it yourself!
 ### Quick Build
 ```bash
 # Clone the repository
-git clone https://github.com/binary-knight/usurper-reloaded.git
-cd usurper-reloaded
+git clone https://github.com/binary-knight/usurper-reborn.git
+cd usurper-reborn
 
 # Build and run (framework-dependent, requires .NET runtime)
 dotnet build usurper-reloaded.csproj -c Release
@@ -421,7 +421,7 @@ For detailed BBS setup instructions, see [DOCS/BBS_DOOR_SETUP.md](DOCS/BBS_DOOR_
 
 ### Source Code
 - Complete source included with every download
-- GitHub: https://github.com/binary-knight/usurper-reloaded
+- GitHub: https://github.com/binary-knight/usurper-reborn
 - All build tools and scripts included
 
 ## Community

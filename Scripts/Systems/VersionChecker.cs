@@ -18,8 +18,8 @@ namespace UsurperRemake.Systems
         public static VersionChecker Instance => _instance ??= new VersionChecker();
 
         // GitHub API endpoint for latest release
-        private const string GitHubApiUrl = "https://api.github.com/repos/binary-knight/usurper-reloaded/releases/latest";
-        private const string GitHubReleasesUrl = "https://github.com/binary-knight/usurper-reloaded/releases/latest";
+        private const string GitHubApiUrl = "https://api.github.com/repos/binary-knight/usurper-reborn/releases/latest";
+        private const string GitHubReleasesUrl = "https://github.com/binary-knight/usurper-reborn/releases/latest";
 
         // Cache file to avoid checking too frequently
         private readonly string cacheFilePath;
