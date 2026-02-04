@@ -18,6 +18,14 @@ namespace UsurperRemake.BBS
         private bool _disposed = false;
         private string _currentColor = "white";
 
+        // Static constructor to register CP437 encoding support
+        static SerialTerminal()
+        {
+            // Register the code pages encoding provider so we can use CP437
+            // This is required in .NET Core/.NET 5+ as legacy encodings aren't available by default
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        }
+
         // ANSI escape codes
         private const string ESC = "\x1b";
         private const string CSI = "\x1b[";
