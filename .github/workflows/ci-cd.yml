@@ -45,13 +45,35 @@ jobs:
         env:
           DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: 1
 
-      - name: Run basic validation
+      - name: Build Tests project
         run: |
-          echo " Basic .NET build successful"
-          echo " Project structure validated"
-          if [ -d "Scripts" ]; then echo " Scripts directory found"; fi
-          if [ -d "Tests" ]; then echo " Tests directory found"; fi
-          echo " Usurper Remake build validation complete"
+          if [ -d "Tests" ] && [ -f "Tests/Tests.csproj" ]; then
+            echo "Building Tests project..."
+            dotnet build Tests/Tests.csproj --configuration Release --no-restore
+          else
+            echo "No Tests project found, skipping test build"
+          fi
+        env:
+          DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: 1
+
+      - name: Run Unit Tests
+        run: |
+          if [ -d "Tests" ] && [ -f "Tests/Tests.csproj" ]; then
+            echo "Running unit tests..."
+            dotnet test Tests/Tests.csproj --configuration Release --no-build --verbosity normal --logger "console;verbosity=detailed"
+          else
+            echo "⚠️ No Tests project found, skipping tests"
+          fi
+        env:
+          DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: 1
+
+      - name: Validation Summary
+        run: |
+          echo "✅ Build successful"
+          if [ -d "Tests" ]; then
+            echo "✅ Tests executed"
+          fi
+          echo "✅ Ready for platform builds"
 
   build:
     name: Build All Platforms
@@ -428,8 +450,8 @@ jobs:
           fi
 
   test-macos-intel:
-    name: Test macOS Intel Build
-    runs-on: macos-13  # Intel-based macOS runner
+    name: Test macOS Intel Build (via Rosetta)
+    runs-on: macos-14  # ARM64 runner - test Intel binary via Rosetta 2
     needs: [build]
     steps:
       - name: Download macOS Build
@@ -438,9 +460,9 @@ jobs:
           name: mac-build
           path: build/
 
-      - name: Test macOS Intel executable
+      - name: Test macOS Intel executable via Rosetta 2
         run: |
-          echo "Testing macOS Intel (x64) build..."
+          echo "Testing macOS Intel (x64) build via Rosetta 2 on ARM64..."
           # Extract the app bundle if it's zipped
           if [ -f "build/usurper-reborn.zip" ]; then
             cd build && unzip -o usurper-reborn.zip && cd ..
@@ -449,11 +471,11 @@ jobs:
           chmod +x "build/usurper-reborn.app/Contents/MacOS/usurper-reborn" 2>/dev/null || true
 
           if [ -f "build/usurper-reborn.app/Contents/MacOS/usurper-reborn" ]; then
-            # Run with --help flag
-            if ./build/usurper-reborn.app/Contents/MacOS/usurper-reborn --help; then
-              echo "✅ macOS Intel executable runs successfully"
+            # Run with --help flag using arch -x86_64 to force Rosetta 2
+            if arch -x86_64 ./build/usurper-reborn.app/Contents/MacOS/usurper-reborn --help; then
+              echo "✅ macOS Intel executable runs successfully via Rosetta 2"
             else
-              echo "✅ macOS Intel executable launched (non-zero exit is OK for --help)"
+              echo "✅ macOS Intel executable launched via Rosetta 2 (non-zero exit is OK for --help)"
             fi
           else
             echo "❌ macOS executable not found"

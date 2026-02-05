@@ -15,10 +15,12 @@ namespace UsurperRemake.BBS
         private static bool _forceStdio = false;
         private static string? _forceFossilPort = null; // Force FOSSIL mode on this COM port
         private static bool _verboseMode = false; // Verbose debug output for troubleshooting
+        private static bool _helpWasShown = false; // Flag to indicate --help was processed
 
         public static BBSSessionInfo? SessionInfo => _sessionInfo;
         public static BBSTerminalAdapter? TerminalAdapter => _terminalAdapter;
         public static bool IsInDoorMode => _sessionInfo != null && _sessionInfo.SourceType != DropFileType.None;
+        public static bool HelpWasShown => _helpWasShown;
 
         /// <summary>
         /// Check command line args for door mode parameters
@@ -97,6 +99,7 @@ namespace UsurperRemake.BBS
                 if (arg == "--help" || arg == "-h" || arg == "-?")
                 {
                     PrintDoorHelp();
+                    _helpWasShown = true;
                     return false;
                 }
             }

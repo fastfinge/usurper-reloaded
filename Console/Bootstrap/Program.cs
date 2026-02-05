@@ -39,11 +39,20 @@ namespace UsurperConsole
             SetupGlobalExceptionHandlers();
 
             // Check for BBS door mode arguments
-            if (args.Length > 0 && DoorMode.ParseCommandLineArgs(args))
+            if (args.Length > 0)
             {
-                // BBS Door Mode - initialize door terminal
-                await RunDoorModeAsync();
-                return;
+                if (DoorMode.ParseCommandLineArgs(args))
+                {
+                    // BBS Door Mode - initialize door terminal
+                    await RunDoorModeAsync();
+                    return;
+                }
+
+                // Check if --help was shown - exit without launching game
+                if (DoorMode.HelpWasShown)
+                {
+                    return;
+                }
             }
 
             // Standard console mode
