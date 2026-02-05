@@ -231,6 +231,11 @@ public class WorldSimulator
                 // Respawn the NPC - clear permanent death flag
                 npc.IsDead = false;
 
+                // CRITICAL FIX: Ensure base stats are valid before RecalculateStats
+                // If base stats are 0 (from old saves or corruption), RecalculateStats
+                // will zero out all stats. Fix them based on level and class.
+                ValidateAndFixBaseStats(npc);
+
                 // Recalculate stats to fix any corrupted MaxHP values
                 npc.RecalculateStats();
 
@@ -259,6 +264,118 @@ public class WorldSimulator
             }
 
             deadNPCRespawnTimers.Remove(npcName);
+        }
+    }
+
+    /// <summary>
+    /// Validate and fix NPC base stats if they are invalid (0 or negative).
+    /// This is critical for saves from older versions where base stats weren't saved,
+    /// or for corrupted NPCs. Without valid base stats, RecalculateStats() will
+    /// zero out all stats causing STR: 0, DEF: -18 type issues.
+    /// </summary>
+    private void ValidateAndFixBaseStats(NPC npc)
+    {
+        bool needsFix = false;
+        int level = npc.Level > 0 ? npc.Level : 1;
+
+        // Check if base stats are invalid (0 or negative)
+        if (npc.BaseStrength <= 0)
+        {
+            // Calculate reasonable base strength for level and class
+            npc.BaseStrength = 10 + (level * 5);
+            if (npc.Class == CharacterClass.Warrior || npc.Class == CharacterClass.Barbarian)
+                npc.BaseStrength += level * 2;
+            needsFix = true;
+        }
+
+        if (npc.BaseDefence <= 0)
+        {
+            npc.BaseDefence = 10 + (level * 3);
+            needsFix = true;
+        }
+
+        if (npc.BaseAgility <= 0)
+        {
+            npc.BaseAgility = 10 + (level * 3);
+            needsFix = true;
+        }
+
+        if (npc.BaseDexterity <= 0)
+        {
+            npc.BaseDexterity = 10 + (level * 2);
+            if (npc.Class == CharacterClass.Assassin)
+                npc.BaseDexterity += level * 3;
+            needsFix = true;
+        }
+
+        if (npc.BaseStamina <= 0)
+        {
+            npc.BaseStamina = 10 + (level * 4);
+            needsFix = true;
+        }
+
+        if (npc.BaseConstitution <= 0)
+        {
+            npc.BaseConstitution = 10 + (level * 2);
+            needsFix = true;
+        }
+
+        if (npc.BaseIntelligence <= 0)
+        {
+            npc.BaseIntelligence = 10 + (level * 2);
+            if (npc.Class == CharacterClass.Magician)
+                npc.BaseIntelligence += level * 3;
+            needsFix = true;
+        }
+
+        if (npc.BaseWisdom <= 0)
+        {
+            npc.BaseWisdom = 10 + (level * 2);
+            if (npc.Class == CharacterClass.Cleric || npc.Class == CharacterClass.Paladin)
+                npc.BaseWisdom += level * 2;
+            needsFix = true;
+        }
+
+        if (npc.BaseCharisma <= 0)
+        {
+            npc.BaseCharisma = 10;
+            needsFix = true;
+        }
+
+        if (npc.BaseMaxHP <= 0)
+        {
+            // Calculate based on class
+            npc.BaseMaxHP = npc.Class switch
+            {
+                CharacterClass.Warrior or CharacterClass.Barbarian => 100 + (level * 50),
+                CharacterClass.Magician => 50 + (level * 25),
+                CharacterClass.Cleric or CharacterClass.Paladin => 80 + (level * 40),
+                CharacterClass.Assassin => 70 + (level * 35),
+                CharacterClass.Sage => 90 + (level * 45),
+                _ => 80 + (level * 40)
+            };
+            needsFix = true;
+        }
+
+        if (npc.BaseMaxMana <= 0 && (npc.Class == CharacterClass.Magician ||
+            npc.Class == CharacterClass.Cleric || npc.Class == CharacterClass.Paladin ||
+            npc.Class == CharacterClass.Sage))
+        {
+            npc.BaseMaxMana = npc.Class switch
+            {
+                CharacterClass.Magician => 50 + (level * 30),
+                CharacterClass.Cleric or CharacterClass.Paladin => 40 + (level * 20),
+                CharacterClass.Sage => 30 + (level * 15),
+                _ => 0
+            };
+            needsFix = true;
+        }
+
+        if (needsFix)
+        {
+            UsurperRemake.Systems.DebugLogger.Instance.LogWarning("NPC",
+                $"Fixed corrupted base stats for {npc.Name} (Level {level} {npc.Class}): " +
+                $"STR={npc.BaseStrength}, DEF={npc.BaseDefence}, AGI={npc.BaseAgility}");
         }
     }
 

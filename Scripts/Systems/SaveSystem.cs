@@ -892,6 +892,17 @@ namespace UsurperRemake.Systems
                     WeapPow = npc.WeapPow,
                     ArmPow = npc.ArmPow,
 
+                    // Base stats (without equipment bonuses)
+                    BaseStrength = npc.BaseStrength > 0 ? npc.BaseStrength : npc.Strength,
+                    BaseDefence = npc.BaseDefence > 0 ? npc.BaseDefence : npc.Defence,
+                    BaseDexterity = npc.BaseDexterity > 0 ? npc.BaseDexterity : npc.Dexterity,
+                    BaseAgility = npc.BaseAgility > 0 ? npc.BaseAgility : npc.Agility,
+                    BaseStamina = npc.BaseStamina > 0 ? npc.BaseStamina : npc.Stamina,
+                    BaseConstitution = npc.BaseConstitution > 0 ? npc.BaseConstitution : npc.Constitution,
+                    BaseIntelligence = npc.BaseIntelligence > 0 ? npc.BaseIntelligence : npc.Intelligence,
+                    BaseWisdom = npc.BaseWisdom > 0 ? npc.BaseWisdom : npc.Wisdom,
+                    BaseCharisma = npc.BaseCharisma > 0 ? npc.BaseCharisma : npc.Charisma,
+
                     // Class and race
                     Class = npc.Class,
                     Race = npc.Race,

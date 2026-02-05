@@ -445,156 +445,585 @@ public partial class CombatEngine
     /// </summary>
     private async Task<CombatAction> GetPlayerAction(Character player, Monster monster, CombatResult result, Character? pvpOpponent = null)
     {
-        // Apply status ticks before player chooses action
-        player.ProcessStatusEffects();
+        bool isPvP = pvpOpponent != null && monster == null;
 
-        terminal.SetColor("cyan");
-        terminal.WriteLine($"Your HP: {player.HP}/{player.MaxHP}");
-        
+        while (true) // Loop until valid action chosen
+        {
+            // Apply status ticks before player chooses action
+            player.ProcessStatusEffects();
+
+            // Check if player can act due to status effects
+            if (!player.CanAct())
+            {
+                var preventingStatus = player.ActiveStatuses.Keys.FirstOrDefault(s => s.PreventsAction());
+                terminal.SetColor("yellow");
+                terminal.WriteLine($"You are {preventingStatus.ToString().ToLower()} and cannot act!");
+                await Task.Delay(GetCombatDelay(1500));
+                return new CombatAction { Type = CombatActionType.None };
+            }
+
+            // If stunned, skip turn
+            if (player.HasStatus(StatusEffect.Stunned))
+            {
+                terminal.SetColor("gray");
+                terminal.WriteLine("You are stunned and cannot act this round!");
+                await Task.Delay(GetCombatDelay(800));
+                return new CombatAction { Type = CombatActionType.Status };
+            }
+
+            // Display combat menu (screen reader compatible or standard)
+            if (player.ScreenReaderMode)
+            {
+                ShowCombatMenuScreenReader(player, monster, pvpOpponent, isPvP);
+            }
+            else
+            {
+                ShowCombatMenuStandard(player, monster, pvpOpponent, isPvP);
+            }
+
+            // Show combat tip occasionally
+            ShowCombatTipIfNeeded(player);
+
+            terminal.SetColor("white");
+            terminal.Write("Choose action: ");
+
+            var choice = await terminal.GetInput("");
+            var upperChoice = choice.Trim().ToUpper();
+
+            // Handle combat speed toggle
+            if (upperChoice == "SPD")
+            {
+                player.CombatSpeed = player.CombatSpeed switch
+                {
+                    CombatSpeed.Normal => CombatSpeed.Fast,
+                    CombatSpeed.Fast => CombatSpeed.Instant,
+                    _ => CombatSpeed.Normal
+                };
+                terminal.WriteLine($"Combat speed set to: {player.CombatSpeed}", "cyan");
+                await Task.Delay(500);
+                continue; // Show menu again
+            }
+
+            // Parse and validate action
+            var action = ParseCombatAction(upperChoice, player);
+
+            // Block certain actions in PvP
+            if (isPvP)
+            {
+                if (action.Type == CombatActionType.PowerAttack ||
+                    action.Type == CombatActionType.PreciseStrike ||
+                    action.Type == CombatActionType.Backstab ||
+                    action.Type == CombatActionType.Smite ||
+                    action.Type == CombatActionType.FightToDeath ||
+                    action.Type == CombatActionType.BegForMercy)
+                {
+                    terminal.WriteLine("That action is not available in PvP combat.", "yellow");
+                    await Task.Delay(800);
+                    continue; // Show menu again
+                }
+            }
+
+            return action;
+        }
+    }
+
+    /// <summary>
+    /// Display combat menu in screen reader friendly format (no box-drawing characters)
+    /// </summary>
+    private void ShowCombatMenuScreenReader(Character player, Monster? monster, Character? pvpOpponent, bool isPvP)
+    {
+        terminal.WriteLine("");
+        terminal.WriteLine("Combat Menu");
+        terminal.WriteLine("");
+
+        // HP Status
+        terminal.WriteLine($"Your HP: {player.HP} of {player.MaxHP}");
         if (monster != null)
         {
-            terminal.WriteLine($"{monster.Name} HP: {monster.HP}");
+            terminal.WriteLine($"Enemy: {monster.Name}, HP: {monster.HP}");
         }
         else if (pvpOpponent != null)
         {
-            terminal.WriteLine($"{pvpOpponent.DisplayName} HP: {pvpOpponent.HP}/{pvpOpponent.MaxHP}");
+            terminal.WriteLine($"Opponent: {pvpOpponent.DisplayName}, HP: {pvpOpponent.HP} of {pvpOpponent.MaxHP}");
         }
-        
-        // Show currently active status effects on the player
+
+        // Status effects
         if (player.ActiveStatuses.Count > 0 || player.IsRaging)
         {
             var list = new List<string>();
             foreach (var kv in player.ActiveStatuses)
             {
                 var label = kv.Key.ToString();
-                if (kv.Value > 0)
-                    label += $"({kv.Value})";
+                if (kv.Value > 0) label += $" {kv.Value} turns";
                 list.Add(label);
             }
+            if (player.IsRaging && !list.Any(s => s.StartsWith("Raging")))
+                list.Add("Raging");
+            terminal.WriteLine($"Status: {string.Join(", ", list)}");
+        }
+        terminal.WriteLine("");
 
-            // Rage is tracked with a separate flag but is also a status effect for display purposes
+        // Basic actions
+        terminal.WriteLine("Actions:");
+        terminal.WriteLine("  A - Attack");
+        terminal.WriteLine("  D - Defend, reduces damage by 50 percent");
+
+        // Spell/Ability options
+        bool isSpellcaster = ClassAbilitySystem.IsSpellcaster(player.Class);
+        if (isSpellcaster)
+        {
+            if (player.CanCastSpells() && player.Mana > 0)
+                terminal.WriteLine($"  C - Cast Spell, Mana: {player.Mana} of {player.MaxMana}");
+            else if (!player.CanCastSpells())
+                terminal.WriteLine("  C - Cast Spell, SILENCED");
+            else
+                terminal.WriteLine("  C - Cast Spell, No Mana");
+        }
+        else
+        {
+            var availableAbilities = ClassAbilitySystem.GetAvailableAbilities(player);
+            if (availableAbilities.Count > 0)
+                terminal.WriteLine($"  B - Abilities, {availableAbilities.Count} available");
+            else
+                terminal.WriteLine("  B - Abilities, Level up to unlock");
+        }
+
+        // Healing
+        if (player.Healing > 0)
+            terminal.WriteLine($"  H - Heal, Potions: {player.Healing} of {player.MaxPotions}");
+        else
+            terminal.WriteLine("  H - Heal, No Potions");
+
+        // Class-specific
+        if (player.Class == CharacterClass.Barbarian && !player.IsRaging)
+            terminal.WriteLine("  G - Rage, Berserker fury");
+        if (player.Class == CharacterClass.Ranger)
+            terminal.WriteLine("  V - Ranged Attack");
+
+        // Tactical options (monster combat only)
+        if (monster != null)
+        {
+            terminal.WriteLine("  P - Power Attack, plus 50 percent damage, lower accuracy");
+            terminal.WriteLine("  E - Precise Strike, higher accuracy");
+        }
+
+        terminal.WriteLine("  I - Disarm, remove weapon bonus");
+        terminal.WriteLine("  T - Taunt, lower enemy defense");
+        terminal.WriteLine("  L - Hide, attempt to slip away");
+
+        // Retreat/Flee
+        if (monster != null)
+        {
+            terminal.WriteLine("  R - Retreat, attempt to flee");
+            terminal.WriteLine("  M - Beg for Mercy");
+            terminal.WriteLine("  F - Fight to Death, no retreat");
+        }
+        else if (isPvP)
+        {
+            terminal.WriteLine("  R - Flee Combat");
+        }
+
+        // Utility
+        terminal.WriteLine("  S - View Status");
+        string speedLabel = player.CombatSpeed switch
+        {
+            CombatSpeed.Instant => "Instant",
+            CombatSpeed.Fast => "Fast",
+            _ => "Normal"
+        };
+        terminal.WriteLine($"  SPD - Combat Speed, currently {speedLabel}");
+        terminal.WriteLine("");
+    }
+
+    /// <summary>
+    /// Display combat menu with box-drawing characters (standard visual mode)
+    /// </summary>
+    private void ShowCombatMenuStandard(Character player, Monster? monster, Character? pvpOpponent, bool isPvP)
+    {
+        // Combat header with HP display
+        terminal.SetColor("bright_white");
+        terminal.WriteLine("╔═══════════════════════════════════════╗");
+        terminal.WriteLine("║           CHOOSE YOUR ACTION          ║");
+        terminal.WriteLine("╠═══════════════════════════════════════╣");
+
+        // HP Status line
+        terminal.SetColor("cyan");
+        string hpStatus = $"Your HP: {player.HP}/{player.MaxHP}";
+        if (monster != null)
+        {
+            hpStatus += $"  │  {monster.Name}: {monster.HP}";
+        }
+        else if (pvpOpponent != null)
+        {
+            hpStatus += $"  │  {pvpOpponent.DisplayName}: {pvpOpponent.HP}/{pvpOpponent.MaxHP}";
+        }
+        terminal.WriteLine($"║ {hpStatus,-37} ║");
+
+        // Show status effects if any
+        if (player.ActiveStatuses.Count > 0 || player.IsRaging)
+        {
+            var list = new List<string>();
+            foreach (var kv in player.ActiveStatuses)
+            {
+                var label = kv.Key.ToString();
+                if (kv.Value > 0) label += $"({kv.Value})";
+                list.Add(label);
+            }
             if (player.IsRaging && !list.Any(s => s.StartsWith("Raging")))
                 list.Add("Raging");
 
             terminal.SetColor("yellow");
-            terminal.WriteLine($"Status: {string.Join(", ", list)}");
+            string statusStr = string.Join(", ", list);
+            if (statusStr.Length > 35) statusStr = statusStr.Substring(0, 32) + "...";
+            terminal.WriteLine($"║ Status: {statusStr,-29} ║");
         }
-        
-        terminal.WriteLine("");
-        
-        // If stunned, skip turn
-        if (player.HasStatus(StatusEffect.Stunned))
-        {
-            terminal.SetColor("gray");
-            terminal.WriteLine("You are stunned and cannot act this round!");
-            await Task.Delay(GetCombatDelay(800));
-            return new CombatAction { Type = CombatActionType.Status };
-        }
-        
-        // Combat menu - improved UX with categorization and filtering
+
+        terminal.SetColor("bright_white");
+        terminal.WriteLine("╠═══════════════════════════════════════╣");
+
+        // === BASIC ACTIONS ===
+        terminal.SetColor("bright_green");
+        terminal.Write("║ [A] ");
+        terminal.SetColor("green");
+        terminal.WriteLine("Attack                             ║");
+
         terminal.SetColor("bright_cyan");
-        terminal.WriteLine("┌─── COMBAT OPTIONS ───┐");
-        terminal.SetColor("white");
+        terminal.Write("║ [D] ");
+        terminal.SetColor("cyan");
+        terminal.WriteLine("Defend (reduce damage 50%)         ║");
 
-        // === OFFENSIVE ACTIONS ===
-        terminal.SetColor("yellow");
-        terminal.Write("Attack: ");
-        terminal.SetColor("white");
-        terminal.Write("(A)ttack  ");
-
-        // Show advanced attacks
-        terminal.Write("(P)ower Attack  (E)Precise Strike");
-        terminal.WriteLine("");
-
-        // === CLASS ABILITIES ===
-        terminal.SetColor("yellow");
-        terminal.Write("Special: ");
-        terminal.SetColor("bright_magenta");
-
-        // Check if this is a spellcaster (uses spells) or martial class (uses abilities)
-        if (ClassAbilitySystem.IsSpellcaster(player.Class))
+        // === SPELL/ABILITY OPTIONS ===
+        bool isSpellcaster = ClassAbilitySystem.IsSpellcaster(player.Class);
+        if (isSpellcaster)
         {
-            // Spellcasters use the Cast Spell option
-            if (player.Mana > 0)
+            bool canCastSpells = player.CanCastSpells() && player.Mana > 0;
+            if (canCastSpells)
             {
-                terminal.Write($"(C)ast Spell (Mana: {player.Mana}/{player.MaxMana})");
+                terminal.SetColor("bright_blue");
+                terminal.Write("║ [C] ");
+                terminal.SetColor("blue");
+                string manaStr = $"Cast Spell (Mana: {player.Mana}/{player.MaxMana})";
+                terminal.WriteLine($"{manaStr,-33} ║");
+            }
+            else if (!player.CanCastSpells())
+            {
+                terminal.SetColor("darkgray");
+                terminal.WriteLine("║ [C] Cast Spell (SILENCED)              ║");
             }
             else
             {
-                terminal.SetColor("dark_gray");
-                terminal.Write("(C)ast Spell [No Mana]");
+                terminal.SetColor("darkgray");
+                terminal.WriteLine("║ [C] Cast Spell (No Mana)               ║");
             }
         }
         else
         {
-            // Martial classes use the Abilities option
+            // Martial class abilities
             var availableAbilities = ClassAbilitySystem.GetAvailableAbilities(player);
             if (availableAbilities.Count > 0)
             {
-                terminal.Write($"(B)ilities ({availableAbilities.Count} available)");
+                terminal.SetColor("bright_blue");
+                terminal.Write("║ [B] ");
+                terminal.SetColor("blue");
+                terminal.WriteLine($"Abilities ({availableAbilities.Count} available)           ║");
             }
             else
             {
-                terminal.SetColor("dark_gray");
-                terminal.Write("(B)ilities [Level up to unlock]");
+                terminal.SetColor("darkgray");
+                terminal.WriteLine("║ [B] Abilities (Level up to unlock)    ║");
             }
         }
 
-        // Show class-specific combat options
-        terminal.SetColor("bright_yellow");
-        if (player.Class == CharacterClass.Barbarian && !player.IsRaging)
-        {
-            terminal.Write("  (G)Rage");
-        }
-        if (player.Class == CharacterClass.Ranger)
-        {
-            terminal.Write("  (V)Ranged");
-        }
-        terminal.WriteLine("");
-
-        // === DEFENSIVE ACTIONS ===
-        terminal.SetColor("yellow");
-        terminal.Write("Defend: ");
-        terminal.SetColor("white");
-        terminal.Write("(D)efend  ");
-
-        // Show healing if player has potions
+        // === HEALING OPTIONS ===
         if (player.Healing > 0)
         {
-            terminal.Write($"(H)eal ({player.Healing})  (Q)uick Heal  ");
+            terminal.SetColor("bright_magenta");
+            terminal.Write("║ [H] ");
+            terminal.SetColor("magenta");
+            terminal.WriteLine($"Heal (Potions: {player.Healing}/{player.MaxPotions})              ║");
+        }
+        else
+        {
+            terminal.SetColor("darkgray");
+            terminal.WriteLine("║ [H] Heal (No Potions)                  ║");
         }
 
-        terminal.WriteLine("(L)Hide");
-
-        // === TACTICAL OPTIONS ===
-        terminal.SetColor("yellow");
-        terminal.Write("Tactical: ");
-        terminal.SetColor("white");
-        terminal.Write("(I)Disarm  (T)Taunt  ");
-
-        if (monster != null)
+        // === CLASS-SPECIFIC ABILITIES ===
+        if (player.Class == CharacterClass.Barbarian && !player.IsRaging)
         {
             terminal.SetColor("bright_red");
-            terminal.Write("(R)etreat");
+            terminal.Write("║ [G] ");
+            terminal.SetColor("red");
+            terminal.WriteLine("Rage (Berserker fury!)             ║");
         }
-        terminal.WriteLine("");
 
-        // === UTILITY ===
-        terminal.SetColor("yellow");
-        terminal.Write("Other: ");
-        terminal.SetColor("gray");
-        terminal.Write("(S)tatus  (U)se Item  (M)ercy  (F)ight to Death");
-        terminal.WriteLine("");
+        if (player.Class == CharacterClass.Ranger)
+        {
+            terminal.SetColor("bright_yellow");
+            terminal.Write("║ [V] ");
+            terminal.SetColor("yellow");
+            terminal.WriteLine("Ranged Attack                      ║");
+        }
+
+        // === TACTICAL OPTIONS (monster combat only) ===
+        if (monster != null)
+        {
+            terminal.SetColor("bright_yellow");
+            terminal.Write("║ [P] ");
+            terminal.SetColor("yellow");
+            terminal.WriteLine("Power Attack (+50% dmg, -accuracy) ║");
+
+            terminal.SetColor("bright_yellow");
+            terminal.Write("║ [E] ");
+            terminal.SetColor("yellow");
+            terminal.WriteLine("Precise Strike (+accuracy)         ║");
+        }
+
+        // Tactical options for both combat types
+        terminal.SetColor("bright_cyan");
+        terminal.Write("║ [I] ");
+        terminal.SetColor("cyan");
+        terminal.WriteLine("Disarm (remove weapon bonus)       ║");
 
         terminal.SetColor("bright_cyan");
-        terminal.WriteLine("└──────────────────────┘");
-        terminal.SetColor("white");
-        
-        var choice = await terminal.GetInput("Your choice: ");
-        
-        return ParseCombatAction(choice.ToUpper().Trim(), player);
+        terminal.Write("║ [T] ");
+        terminal.SetColor("cyan");
+        terminal.WriteLine("Taunt (lower enemy defense)        ║");
+
+        terminal.SetColor("gray");
+        terminal.Write("║ [L] ");
+        terminal.SetColor("darkgray");
+        terminal.WriteLine("Hide (attempt to slip away)        ║");
+
+        // === RETREAT/FLEE OPTIONS ===
+        if (monster != null)
+        {
+            terminal.SetColor("yellow");
+            terminal.Write("║ [R] ");
+            terminal.SetColor("white");
+            terminal.WriteLine("Retreat (attempt to flee)          ║");
+
+            terminal.SetColor("gray");
+            terminal.Write("║ [M] ");
+            terminal.SetColor("darkgray");
+            terminal.WriteLine("Beg for Mercy                      ║");
+
+            terminal.SetColor("bright_red");
+            terminal.Write("║ [F] ");
+            terminal.SetColor("red");
+            terminal.WriteLine("Fight to Death (no retreat)        ║");
+        }
+        else if (isPvP)
+        {
+            // PvP-specific: Flee instead of retreat
+            terminal.SetColor("yellow");
+            terminal.Write("║ [R] ");
+            terminal.SetColor("white");
+            terminal.WriteLine("Flee Combat                        ║");
+        }
+
+        // === UTILITY ===
+        terminal.SetColor("gray");
+        terminal.Write("║ [S] ");
+        terminal.SetColor("darkgray");
+        terminal.WriteLine("View Status                        ║");
+
+        // Combat speed option
+        string speedLabel = player.CombatSpeed switch
+        {
+            CombatSpeed.Instant => "Instant",
+            CombatSpeed.Fast => "Fast",
+            _ => "Normal"
+        };
+        terminal.SetColor("gray");
+        terminal.Write("║ [SPD] ");
+        terminal.SetColor("darkgray");
+        terminal.WriteLine($"Combat Speed: {speedLabel,-18}║");
+
+        terminal.SetColor("bright_white");
+        terminal.WriteLine("╚═══════════════════════════════════════╝");
+        terminal.WriteLine("");
     }
-    
+
+    /// <summary>
+    /// Display dungeon combat menu in screen reader friendly format (no box-drawing characters)
+    /// </summary>
+    private void ShowDungeonCombatMenuScreenReader(Character player, bool hasInjuredTeammates, bool canHealAlly, List<(string key, string name, bool available)> classInfo)
+    {
+        terminal.WriteLine("");
+        terminal.WriteLine("Dungeon Combat Menu");
+        terminal.WriteLine("");
+
+        // Basic actions
+        terminal.WriteLine("Actions:");
+        terminal.WriteLine("  A - Attack");
+        terminal.WriteLine("  D - Defend, reduces damage by 50 percent");
+
+        // Spell option (spellcasters only)
+        bool isSpellcaster = ClassAbilitySystem.IsSpellcaster(player.Class);
+        if (isSpellcaster)
+        {
+            if (player.CanCastSpells() && player.Mana > 0)
+                terminal.WriteLine($"  S - Cast Spell, Mana: {player.Mana} of {player.MaxMana}");
+            else if (!player.CanCastSpells())
+                terminal.WriteLine("  S - Cast Spell, SILENCED");
+            else
+                terminal.WriteLine("  S - Cast Spell, No Mana");
+        }
+
+        // Item option
+        if (player.Healing > 0)
+            terminal.WriteLine($"  I - Use Item, Potions: {player.Healing} of {player.MaxPotions}");
+        else
+            terminal.WriteLine("  I - Use Item, No Potions");
+
+        // Heal Ally
+        if (hasInjuredTeammates)
+        {
+            if (canHealAlly)
+                terminal.WriteLine("  H - Heal Ally");
+            else
+                terminal.WriteLine("  H - Heal Ally, No means to heal");
+        }
+
+        // Class-specific abilities
+        foreach (var (key, name, available) in classInfo)
+        {
+            if (available)
+                terminal.WriteLine($"  {key} - {name}");
+        }
+
+        // Retreat and auto
+        terminal.WriteLine("  R - Retreat, attempt to flee");
+        terminal.WriteLine("  AUTO - Auto-Combat Mode");
+
+        // Combat speed
+        string speedLabel = player.CombatSpeed switch
+        {
+            CombatSpeed.Instant => "Instant",
+            CombatSpeed.Fast => "Fast",
+            _ => "Normal"
+        };
+        terminal.WriteLine($"  SPD - Combat Speed, currently {speedLabel}");
+        terminal.WriteLine("");
+    }
+
+    /// <summary>
+    /// Display dungeon combat menu with box-drawing characters (standard visual mode)
+    /// </summary>
+    private void ShowDungeonCombatMenuStandard(Character player, bool hasInjuredTeammates, bool canHealAlly, List<(string key, string name, bool available)> classInfo)
+    {
+        terminal.SetColor("bright_white");
+        terminal.WriteLine("╔═══════════════════════════════════════╗");
+        terminal.WriteLine("║           CHOOSE YOUR ACTION          ║");
+        terminal.WriteLine("╠═══════════════════════════════════════╣");
+
+        // Basic actions
+        terminal.SetColor("bright_green");
+        terminal.Write("║ [A] ");
+        terminal.SetColor("green");
+        terminal.WriteLine("Attack                             ║");
+
+        terminal.SetColor("bright_cyan");
+        terminal.Write("║ [D] ");
+        terminal.SetColor("cyan");
+        terminal.WriteLine("Defend (reduce damage 50%)         ║");
+
+        // Spell option - ONLY show for spellcaster classes (Magician, Cleric, Sage)
+        bool isSpellcaster = ClassAbilitySystem.IsSpellcaster(player.Class);
+        if (isSpellcaster)
+        {
+            bool canCastSpells = player.CanCastSpells() && player.Mana > 0;
+            if (canCastSpells)
+            {
+                terminal.SetColor("bright_blue");
+                terminal.Write("║ [S] ");
+                terminal.SetColor("blue");
+                terminal.WriteLine($"Cast Spell (Mana: {player.Mana}/{player.MaxMana})         ║");
+            }
+            else if (!player.CanCastSpells())
+            {
+                terminal.SetColor("darkgray");
+                terminal.WriteLine("║ [S] Cast Spell (SILENCED)              ║");
+            }
+            else
+            {
+                terminal.SetColor("darkgray");
+                terminal.WriteLine("║ [S] Cast Spell (No Mana)               ║");
+            }
+        }
+
+        // Item option (show potion count)
+        if (player.Healing > 0)
+        {
+            terminal.SetColor("bright_magenta");
+            terminal.Write("║ [I] ");
+            terminal.SetColor("magenta");
+            terminal.WriteLine($"Use Item (Potions: {player.Healing}/{player.MaxPotions})         ║");
+        }
+        else
+        {
+            terminal.SetColor("darkgray");
+            terminal.WriteLine("║ [I] Use Item (No Potions)              ║");
+        }
+
+        // Heal Ally option
+        if (hasInjuredTeammates)
+        {
+            if (canHealAlly)
+            {
+                terminal.SetColor("bright_green");
+                terminal.Write("║ [H] ");
+                terminal.SetColor("green");
+                terminal.WriteLine("Heal Ally                          ║");
+            }
+            else
+            {
+                terminal.SetColor("darkgray");
+                terminal.WriteLine("║ [H] Heal Ally (No means to heal)      ║");
+            }
+        }
+
+        // Class-specific abilities
+        foreach (var (key, name, available) in classInfo)
+        {
+            if (available)
+            {
+                terminal.SetColor("bright_yellow");
+                terminal.Write($"║ [{key}] ");
+                terminal.SetColor("yellow");
+                terminal.WriteLine($"{name,-33}║");
+            }
+        }
+
+        // Retreat and auto
+        terminal.SetColor("yellow");
+        terminal.Write("║ [R] ");
+        terminal.SetColor("white");
+        terminal.WriteLine("Retreat (attempt to flee)          ║");
+
+        terminal.SetColor("bright_cyan");
+        terminal.Write("║ [AUTO] ");
+        terminal.SetColor("cyan");
+        terminal.WriteLine("Auto-Combat Mode                ║");
+
+        // Combat speed option
+        string speedLabel = player.CombatSpeed switch
+        {
+            CombatSpeed.Instant => "Instant",
+            CombatSpeed.Fast => "Fast",
+            _ => "Normal"
+        };
+        terminal.SetColor("gray");
+        terminal.Write("║ [SPD]  ");
+        terminal.SetColor("darkgray");
+        terminal.WriteLine($"Combat Speed: {speedLabel,-18}║");
+
+        terminal.SetColor("bright_white");
+        terminal.WriteLine("╚═══════════════════════════════════════╝");
+        terminal.WriteLine("");
+    }
+
     /// <summary>
     /// Parse combat action from input
     /// </summary>
@@ -609,8 +1038,7 @@ public partial class CombatEngine
             "Q" => new CombatAction { Type = CombatActionType.QuickHeal },
             "F" => new CombatAction { Type = CombatActionType.FightToDeath },
             "S" => new CombatAction { Type = CombatActionType.Status },
-            "M" => new CombatAction { Type = CombatActionType.BegForMercy },  // Changed from B to M
-            "U" => new CombatAction { Type = CombatActionType.UseItem },
+            "M" => new CombatAction { Type = CombatActionType.BegForMercy },
             "P" => new CombatAction { Type = CombatActionType.PowerAttack },
             "E" => new CombatAction { Type = CombatActionType.PreciseStrike },
             "C" => new CombatAction { Type = CombatActionType.CastSpell },
@@ -987,22 +1415,64 @@ public partial class CombatEngine
             await Task.Delay(GetCombatDelay(1000));
             return;
         }
-        
-        long healAmount;
+
+        if (player.Healing <= 0)
+        {
+            terminal.WriteLine("You have no healing potions!", "red");
+            await Task.Delay(GetCombatDelay(1000));
+            return;
+        }
+
         if (quick)
         {
-            healAmount = Math.Min(10, player.MaxHP - player.HP);
-            terminal.WriteLine($"You quickly bandage your wounds for {healAmount} HP.", "green");
+            // Quick heal uses one potion
+            player.Healing--;
+            long healAmount = 30 + player.Level * 5 + random.Next(10, 30);
+            healAmount = Math.Min(healAmount, player.MaxHP - player.HP);
+            player.HP += healAmount;
+            player.Statistics?.RecordPotionUsed(healAmount);
+            terminal.WriteLine($"You quickly quaff a healing potion for {healAmount} HP!", "green");
+            result.CombatLog.Add($"Player heals for {healAmount} HP");
         }
         else
         {
-            healAmount = Math.Min(25, player.MaxHP - player.HP);
-            terminal.WriteLine($"You carefully tend your wounds for {healAmount} HP.", "green");
+            // Regular heal - ask how many potions to use for full control
+            long missingHP = player.MaxHP - player.HP;
+            long avgHealPerPotion = 50 + player.Level * 5;  // Average heal: 30 + level*5 + avg(10-30)
+            int potionsToFullHeal = (int)Math.Ceiling((double)missingHP / avgHealPerPotion);
+            potionsToFullHeal = Math.Min(potionsToFullHeal, (int)player.Healing);
+
+            terminal.WriteLine($"You have {player.Healing} healing potions.", "cyan");
+            terminal.WriteLine($"Missing {missingHP} HP. (~{potionsToFullHeal} potions to full)", "cyan");
+            var input = await terminal.GetInput($"How many potions? (1-{player.Healing}, F=full, Enter=1): ");
+
+            int potionsToUse = 1;
+            if (input.Trim().Equals("F", StringComparison.OrdinalIgnoreCase))
+            {
+                // Use enough potions to heal to full
+                potionsToUse = potionsToFullHeal;
+            }
+            else if (!string.IsNullOrWhiteSpace(input) && int.TryParse(input, out int parsed))
+            {
+                potionsToUse = Math.Clamp(parsed, 1, (int)player.Healing);
+            }
+
+            long totalHeal = 0;
+            for (int i = 0; i < potionsToUse && player.HP < player.MaxHP; i++)
+            {
+                player.Healing--;
+                long healAmount = 30 + player.Level * 5 + random.Next(10, 30);
+                healAmount = Math.Min(healAmount, player.MaxHP - player.HP);
+                player.HP += healAmount;
+                totalHeal += healAmount;
+            }
+
+            player.Statistics?.RecordPotionUsed(totalHeal);
+            terminal.WriteLine($"You use {potionsToUse} potion(s) and heal {totalHeal} HP!", "bright_green");
+            result.CombatLog.Add($"Player heals for {totalHeal} HP using {potionsToUse} potions");
         }
-        
-        player.HP += healAmount;
-        result.CombatLog.Add($"Player heals for {healAmount} HP");
-        await Task.Delay(GetCombatDelay(1500));
+
+        await Task.Delay(GetCombatDelay(1000));
     }
     
     /// <summary>
@@ -1011,6 +1481,13 @@ public partial class CombatEngine
     /// </summary>
     private async Task ExecuteBackstab(Character player, Monster target, CombatResult result)
     {
+        if (target == null)
+        {
+            terminal.WriteLine("Backstab has no effect in this combat!", "yellow");
+            await Task.Delay(GetCombatDelay(500));
+            return;
+        }
+
         terminal.SetColor("bright_yellow");
         terminal.WriteLine("You attempt to backstab!");
         await Task.Delay(GetCombatDelay(1000));
@@ -2912,119 +3389,19 @@ public partial class CombatEngine
                 return (new CombatAction { Type = CombatActionType.None }, false);
             }
 
-            // Show action menu
-            terminal.SetColor("bright_white");
-            terminal.WriteLine("╔═══════════════════════════════════════╗");
-            terminal.WriteLine("║           CHOOSE YOUR ACTION          ║");
-            terminal.WriteLine("╠═══════════════════════════════════════╣");
+            // Show action menu (screen reader compatible or standard)
+            bool hasInjuredTeammates = currentTeammates?.Any(t => t.IsAlive && t.HP < t.MaxHP) ?? false;
+            bool canHealAlly = hasInjuredTeammates && (player.Healing > 0 || (ClassAbilitySystem.IsSpellcaster(player.Class) && player.Mana > 0));
+            var classInfo = GetClassSpecificActions(player);
 
-            // Basic actions
-            terminal.SetColor("bright_green");
-            terminal.Write("║ [A] ");
-            terminal.SetColor("green");
-            terminal.WriteLine("Attack                             ║");
-
-            terminal.SetColor("bright_cyan");
-            terminal.Write("║ [D] ");
-            terminal.SetColor("cyan");
-            terminal.WriteLine("Defend (reduce damage 50%)         ║");
-
-            // Spell option - ONLY show for spellcaster classes (Magician, Cleric, Sage)
-            bool isSpellcaster = ClassAbilitySystem.IsSpellcaster(player.Class);
-            if (isSpellcaster)
+            if (player.ScreenReaderMode)
             {
-                bool canCastSpells = player.CanCastSpells() && player.Mana > 0;
-                if (canCastSpells)
-                {
-                    terminal.SetColor("bright_blue");
-                    terminal.Write("║ [S] ");
-                    terminal.SetColor("blue");
-                    terminal.WriteLine($"Cast Spell (Mana: {player.Mana}/{player.MaxMana})         ║");
-                }
-                else if (!player.CanCastSpells())
-                {
-                    terminal.SetColor("darkgray");
-                    terminal.WriteLine("║ [S] Cast Spell (SILENCED)              ║");
-                }
-                else
-                {
-                    terminal.SetColor("darkgray");
-                    terminal.WriteLine("║ [S] Cast Spell (No Mana)               ║");
-                }
-            }
-
-            // Item option (show potion count)
-            if (player.Healing > 0)
-            {
-                terminal.SetColor("bright_magenta");
-                terminal.Write("║ [I] ");
-                terminal.SetColor("magenta");
-                terminal.WriteLine($"Use Item (Potions: {player.Healing}/{player.MaxPotions})         ║");
+                ShowDungeonCombatMenuScreenReader(player, hasInjuredTeammates, canHealAlly, classInfo);
             }
             else
             {
-                terminal.SetColor("darkgray");
-                terminal.WriteLine("║ [I] Use Item (No Potions)              ║");
+                ShowDungeonCombatMenuStandard(player, hasInjuredTeammates, canHealAlly, classInfo);
             }
-
-            // Heal Ally option - show if there are injured teammates and player has potions or heal spells
-            bool hasInjuredTeammates = currentTeammates?.Any(t => t.IsAlive && t.HP < t.MaxHP) ?? false;
-            bool canHealAlly = hasInjuredTeammates && (player.Healing > 0 || (ClassAbilitySystem.IsSpellcaster(player.Class) && player.Mana > 0));
-            if (hasInjuredTeammates)
-            {
-                if (canHealAlly)
-                {
-                    terminal.SetColor("bright_green");
-                    terminal.Write("║ [H] ");
-                    terminal.SetColor("green");
-                    terminal.WriteLine("Heal Ally                          ║");
-                }
-                else
-                {
-                    terminal.SetColor("darkgray");
-                    terminal.WriteLine("║ [H] Heal Ally (No means to heal)      ║");
-                }
-            }
-
-            // Class-specific abilities
-            var classInfo = GetClassSpecificActions(player);
-            foreach (var (key, name, available) in classInfo)
-            {
-                if (available)
-                {
-                    terminal.SetColor("bright_yellow");
-                    terminal.Write($"║ [{key}] ");
-                    terminal.SetColor("yellow");
-                    terminal.WriteLine($"{name,-33}║");
-                }
-            }
-
-            // Retreat and auto
-            terminal.SetColor("yellow");
-            terminal.Write("║ [R] ");
-            terminal.SetColor("white");
-            terminal.WriteLine("Retreat (attempt to flee)          ║");
-
-            terminal.SetColor("bright_cyan");
-            terminal.Write("║ [AUTO] ");
-            terminal.SetColor("cyan");
-            terminal.WriteLine("Auto-Combat Mode                ║");
-
-            // Combat speed option
-            string speedLabel = player.CombatSpeed switch
-            {
-                CombatSpeed.Instant => "Instant",
-                CombatSpeed.Fast => "Fast",
-                _ => "Normal"
-            };
-            terminal.SetColor("gray");
-            terminal.Write("║ [SPD]  ");
-            terminal.SetColor("darkgray");
-            terminal.WriteLine($"Combat Speed: {speedLabel,-18}║");
-
-            terminal.SetColor("bright_white");
-            terminal.WriteLine("╚═══════════════════════════════════════╝");
-            terminal.WriteLine("");
 
             // Show combat tip occasionally
             ShowCombatTipIfNeeded(player);
@@ -6643,8 +7020,211 @@ public partial class CombatEngine
     
     private async Task ProcessPlayerVsPlayerAction(CombatAction action, Character attacker, Character defender, CombatResult result)
     {
-        // Simplified PvP for now
-        await ProcessPlayerAction(action, attacker, null, result);
+        if (!attacker.IsAlive || !defender.IsAlive) return;
+
+        switch (action.Type)
+        {
+            case CombatActionType.Attack:
+                await ExecutePvPAttack(attacker, defender, result);
+                break;
+
+            case CombatActionType.Defend:
+                await ExecuteDefend(attacker, result);
+                break;
+
+            case CombatActionType.Heal:
+                await ExecuteHeal(attacker, result, false);
+                break;
+
+            case CombatActionType.QuickHeal:
+                await ExecuteHeal(attacker, result, true);
+                break;
+
+            case CombatActionType.Status:
+                await ShowCombatStatus(attacker, result);
+                break;
+
+            case CombatActionType.UseItem:
+                // Redirect to proper heal (UseItem is deprecated, use Heal instead)
+                await ExecuteHeal(attacker, result, false);
+                break;
+
+            case CombatActionType.CastSpell:
+                await ExecutePvPSpell(attacker, defender, result);
+                break;
+
+            case CombatActionType.Hide:
+                await ExecuteHide(attacker, result);
+                break;
+
+            case CombatActionType.Taunt:
+                terminal.WriteLine($"You taunt {defender.DisplayName}!", "yellow");
+                await Task.Delay(GetCombatDelay(500));
+                break;
+
+            case CombatActionType.Disarm:
+                await ExecutePvPDisarm(attacker, defender, result);
+                break;
+
+            // Actions that don't work in PvP
+            case CombatActionType.PowerAttack:
+            case CombatActionType.PreciseStrike:
+            case CombatActionType.Backstab:
+            case CombatActionType.Smite:
+            case CombatActionType.FightToDeath:
+            case CombatActionType.BegForMercy:
+            case CombatActionType.Retreat:
+                terminal.WriteLine("That action is not available in PvP combat.", "yellow");
+                await Task.Delay(GetCombatDelay(500));
+                // Default to basic attack
+                await ExecutePvPAttack(attacker, defender, result);
+                break;
+
+            default:
+                // Default to attack
+                await ExecutePvPAttack(attacker, defender, result);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Execute a basic PvP attack (Character vs Character)
+    /// </summary>
+    private async Task ExecutePvPAttack(Character attacker, Character defender, CombatResult result)
+    {
+        long attackPower = attacker.Strength + attacker.WeapPow + random.Next(1, 16);
+
+        // Apply weapon configuration damage modifier
+        double damageModifier = GetWeaponConfigDamageModifier(attacker);
+        attackPower = (long)(attackPower * damageModifier);
+
+        // Check for critical hit
+        bool isCritical = random.Next(100) < 5 + (attacker.Dexterity / 10);
+        if (isCritical)
+        {
+            attackPower = (long)(attackPower * 1.5);
+            terminal.SetColor("bright_yellow");
+            terminal.WriteLine("CRITICAL HIT!");
+        }
+
+        // Check for shield block on defender
+        var (blocked, blockBonus) = TryShieldBlock(defender);
+        if (blocked)
+        {
+            terminal.SetColor("bright_cyan");
+            terminal.WriteLine($"{defender.DisplayName} raises their shield to block!");
+        }
+
+        long defense = defender.Defence + random.Next(0, (int)Math.Max(1, defender.Defence / 8));
+        defense += blockBonus;
+
+        // Apply defender's weapon configuration defense modifier
+        double defenseModifier = GetWeaponConfigDefenseModifier(defender);
+        defense = (long)(defense * defenseModifier);
+
+        // Apply defending bonus if active
+        if (defender.HasStatus(StatusEffect.Defending))
+        {
+            defense = (long)(defense * 1.5);
+        }
+
+        long damage = Math.Max(1, attackPower - defense);
+        defender.HP = Math.Max(0, defender.HP - damage);
+
+        // Track statistics
+        attacker.Statistics?.RecordDamageDealt(damage, isCritical);
+
+        terminal.SetColor(isCritical ? "bright_red" : "red");
+        terminal.WriteLine($"You strike {defender.DisplayName} for {damage} damage!");
+        terminal.SetColor("cyan");
+        terminal.WriteLine($"Your HP: {attacker.HP}/{attacker.MaxHP}");
+        terminal.WriteLine($"{defender.DisplayName} HP: {defender.HP}/{defender.MaxHP}");
+
+        result.CombatLog.Add($"{attacker.DisplayName} hits {defender.DisplayName} for {damage}");
+        await Task.Delay(GetCombatDelay(800));
+    }
+
+    /// <summary>
+    /// Execute a spell in PvP combat
+    /// </summary>
+    private async Task ExecutePvPSpell(Character attacker, Character defender, CombatResult result)
+    {
+        if (attacker.Mana <= 0)
+        {
+            terminal.WriteLine("You have no mana to cast spells!", "red");
+            await Task.Delay(GetCombatDelay(500));
+            return;
+        }
+
+        var spells = SpellSystem.GetAvailableSpells(attacker)
+                    .Where(s => SpellSystem.CanCastSpell(attacker, s.Level))
+                    .ToList();
+
+        if (spells.Count == 0)
+        {
+            terminal.WriteLine("You don't know any spells you can cast!", "yellow");
+            await Task.Delay(GetCombatDelay(500));
+            return;
+        }
+
+        // Show spell selection
+        terminal.WriteLine("Available spells:", "cyan");
+        for (int i = 0; i < spells.Count; i++)
+        {
+            var sp = spells[i];
+            terminal.WriteLine($"  [{i + 1}] {sp.Name} (Level {sp.Level}, Cost: {sp.ManaCost})", "white");
+        }
+
+        var choice = await terminal.GetInput("Cast which spell? ");
+        if (int.TryParse(choice, out int spellIndex) && spellIndex >= 1 && spellIndex <= spells.Count)
+        {
+            var chosen = spells[spellIndex - 1];
+            var spellResult = SpellSystem.CastSpell(attacker, chosen.Level, defender);
+            terminal.WriteLine(spellResult.Message, "magenta");
+
+            // Apply spell effects - damage spells work on Character
+            if (spellResult.Success && spellResult.Damage > 0)
+            {
+                defender.HP = Math.Max(0, defender.HP - spellResult.Damage);
+                terminal.WriteLine($"{defender.DisplayName} takes {spellResult.Damage} magical damage!", "bright_magenta");
+            }
+
+            result.CombatLog.Add($"{attacker.DisplayName} casts {chosen.Name}");
+        }
+        else
+        {
+            terminal.WriteLine("Spell cancelled.", "gray");
+        }
+
+        await Task.Delay(GetCombatDelay(800));
+    }
+
+    /// <summary>
+    /// Execute a disarm attempt in PvP combat
+    /// </summary>
+    private async Task ExecutePvPDisarm(Character attacker, Character defender, CombatResult result)
+    {
+        // Disarm attempt based on dexterity vs defender's strength
+        int successChance = 30 + (int)(attacker.Dexterity / 3) - (int)(defender.Strength / 4);
+        successChance = Math.Clamp(successChance, 5, 75);
+
+        if (random.Next(100) < successChance)
+        {
+            // Successful disarm - temporarily reduce weapon power
+            long oldWeapPow = defender.WeapPow;
+            defender.WeapPow = Math.Max(0, defender.WeapPow / 2);
+            terminal.SetColor("bright_green");
+            terminal.WriteLine($"You disarm {defender.DisplayName}! Their weapon effectiveness is reduced!");
+            result.CombatLog.Add($"{attacker.DisplayName} disarms {defender.DisplayName}");
+        }
+        else
+        {
+            terminal.SetColor("gray");
+            terminal.WriteLine($"Your disarm attempt fails!");
+            result.CombatLog.Add($"{attacker.DisplayName} fails to disarm");
+        }
+
+        await Task.Delay(GetCombatDelay(800));
     }
     
     private async Task ProcessComputerPlayerAction(Character computer, Character opponent, CombatResult result)
@@ -7031,6 +7611,13 @@ public partial class CombatEngine
 
     private async Task ExecutePowerAttack(Character attacker, Monster target, CombatResult result)
     {
+        if (target == null)
+        {
+            terminal.WriteLine("Power Attack has no effect in this combat!", "yellow");
+            await Task.Delay(GetCombatDelay(500));
+            return;
+        }
+
         // Apply PowerStance status so any extra attacks this round follow the same rules
         attacker.ApplyStatus(StatusEffect.PowerStance, 1);
 
@@ -7073,6 +7660,13 @@ public partial class CombatEngine
 
     private async Task ExecutePreciseStrike(Character attacker, Monster target, CombatResult result)
     {
+        if (target == null)
+        {
+            terminal.WriteLine("Precise Strike has no effect in this combat!", "yellow");
+            await Task.Delay(GetCombatDelay(500));
+            return;
+        }
+
         // Higher accuracy (+25 %) but normal damage.
         long attackPower = attacker.Strength;
         if (attacker.WeapPow > 0)
@@ -7146,6 +7740,13 @@ public partial class CombatEngine
 
     private async Task ExecuteSmite(Character player, Monster target, CombatResult result)
     {
+        if (target == null)
+        {
+            terminal.WriteLine("Smite has no effect in this combat!", "yellow");
+            await Task.Delay(GetCombatDelay(500));
+            return;
+        }
+
         if (player.SmiteChargesRemaining <= 0)
         {
             terminal.WriteLine("You are out of smite charges!", "gray");

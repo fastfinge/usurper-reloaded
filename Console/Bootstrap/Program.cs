@@ -35,6 +35,9 @@ namespace UsurperConsole
 
         static async Task Main(string[] args)
         {
+            // Set up global exception handlers FIRST so we catch everything
+            SetupGlobalExceptionHandlers();
+
             // Check for BBS door mode arguments
             if (args.Length > 0 && DoorMode.ParseCommandLineArgs(args))
             {
@@ -51,6 +54,42 @@ namespace UsurperConsole
 
             // Spin up the full engine in console mode.
             await GameEngine.RunConsoleAsync();
+        }
+
+        /// <summary>
+        /// Set up global exception handlers to log all unhandled exceptions to debug.log
+        /// </summary>
+        private static void SetupGlobalExceptionHandlers()
+        {
+            // Handle unhandled exceptions on any thread
+            AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
+            {
+                var ex = e.ExceptionObject as Exception;
+                var message = ex?.ToString() ?? e.ExceptionObject?.ToString() ?? "Unknown exception";
+
+                // Log to debug file
+                DebugLogger.Instance.LogError("CRASH", $"Unhandled exception (IsTerminating={e.IsTerminating}):\n{message}");
+                DebugLogger.Instance.Flush(); // Force immediate write
+
+                // Also write to stderr
+                Console.Error.WriteLine($"[CRASH] Unhandled exception: {message}");
+            };
+
+            // Handle unobserved task exceptions (async exceptions that weren't awaited)
+            TaskScheduler.UnobservedTaskException += (sender, e) =>
+            {
+                var message = e.Exception?.ToString() ?? "Unknown task exception";
+
+                // Log to debug file
+                DebugLogger.Instance.LogError("CRASH", $"Unobserved task exception:\n{message}");
+                DebugLogger.Instance.Flush(); // Force immediate write
+
+                // Also write to stderr
+                Console.Error.WriteLine($"[CRASH] Unobserved task exception: {message}");
+
+                // Mark as observed to prevent crash
+                e.SetObserved();
+            };
         }
 
         /// <summary>

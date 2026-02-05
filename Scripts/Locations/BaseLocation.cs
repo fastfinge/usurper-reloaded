@@ -1501,6 +1501,10 @@ public abstract class BaseLocation
         throw new LocationExitException(destination);
     }
 
+    // Track last ambush to prevent constant ambushes
+    private static int _travelsSinceLastAmbush = 0;
+    private const int MIN_TRAVELS_BETWEEN_AMBUSHES = 3;
+
     /// <summary>
     /// Check for and handle faction ambushes while traveling
     /// Returns true if an ambush occurred (regardless of outcome)
@@ -1511,9 +1515,15 @@ public abstract class BaseLocation
         var npcSpawn = UsurperRemake.Systems.NPCSpawnSystem.Instance;
         var random = new Random();
 
+        // Cooldown: Can't be ambushed too frequently
+        _travelsSinceLastAmbush++;
+        if (_travelsSinceLastAmbush < MIN_TRAVELS_BETWEEN_AMBUSHES)
+            return false;
+
         // Get NPCs that could ambush (alive, with factions, hostile to player)
         var potentialAmbushers = npcSpawn?.ActiveNPCs?
             .Where(npc => !npc.IsDead &&
+                          npc.IsAlive &&  // Must have HP > 0
                           npc.NPCFaction.HasValue &&
                           factionSystem.IsNPCHostileToPlayer(npc.NPCFaction) &&
                           npc.Level <= currentPlayer.Level + 5) // Don't ambush with NPCs way higher level
@@ -1522,16 +1532,22 @@ public abstract class BaseLocation
         if (potentialAmbushers == null || potentialAmbushers.Count == 0)
             return false;
 
-        // Check each potential ambusher
-        foreach (var npc in potentialAmbushers)
+        // Roll ONCE per travel, picking a random hostile NPC
+        // This prevents the "each NPC rolls" problem that caused constant ambushes
+        var randomAmbusher = potentialAmbushers[random.Next(potentialAmbushers.Count)];
+        int ambushChance = factionSystem.GetAmbushChance(randomAmbusher.NPCFaction);
+
+        // Scale chance slightly by number of hostile NPCs (more enemies = slightly more danger)
+        // But cap the bonus to prevent runaway scaling
+        int hostileBonus = Math.Min(10, potentialAmbushers.Count);
+        ambushChance = Math.Min(40, ambushChance + hostileBonus); // Cap at 40%
+
+        if (random.Next(100) < ambushChance)
         {
-            int ambushChance = factionSystem.GetAmbushChance(npc.NPCFaction);
-            if (random.Next(100) < ambushChance)
-            {
-                // Ambush triggered!
-                await HandleFactionAmbush(npc, factionSystem);
-                return true;
-            }
+            // Ambush triggered!
+            _travelsSinceLastAmbush = 0; // Reset cooldown
+            await HandleFactionAmbush(randomAmbusher, factionSystem);
+            return true;
         }
 
         return false;

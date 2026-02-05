@@ -303,6 +303,8 @@ public partial class GameEngine : Node
             {
                 GD.PrintErr($"[GameEngine] Fatal error in main loop: {ex.Message}");
                 GD.PrintErr(ex.StackTrace);
+                UsurperRemake.Systems.DebugLogger.Instance.LogError("CRASH", $"Fatal error in main loop:\n{ex}");
+                UsurperRemake.Systems.DebugLogger.Instance.Flush();
                 throw; // Re-throw to crash properly rather than hang silently
             }
         });
@@ -1019,6 +1021,8 @@ public partial class GameEngine : Node
         {
             terminal.WriteLine($"Error loading save: {ex.Message}", "red");
             GD.PrintErr($"Failed to load save {fileName}: {ex}");
+            UsurperRemake.Systems.DebugLogger.Instance.LogError("CRASH", $"Failed to load save {fileName}:\n{ex}");
+            UsurperRemake.Systems.DebugLogger.Instance.Flush();
             await Task.Delay(3000);
         }
     }
@@ -1849,6 +1853,18 @@ public partial class GameEngine : Node
                 WeapPow = data.WeapPow,
                 ArmPow = data.ArmPow,
 
+                // Base stats - CRITICAL for RecalculateStats to work correctly
+                // Fallback to current stats if base stats not saved (legacy save compatibility)
+                BaseStrength = data.BaseStrength > 0 ? data.BaseStrength : data.Strength,
+                BaseDefence = data.BaseDefence > 0 ? data.BaseDefence : data.Defence,
+                BaseDexterity = data.BaseDexterity > 0 ? data.BaseDexterity : data.Dexterity,
+                BaseAgility = data.BaseAgility > 0 ? data.BaseAgility : data.Agility,
+                BaseStamina = data.BaseStamina > 0 ? data.BaseStamina : 50,  // Default stamina
+                BaseConstitution = data.BaseConstitution > 0 ? data.BaseConstitution : 10 + data.Level * 2,
+                BaseIntelligence = data.BaseIntelligence > 0 ? data.BaseIntelligence : 10,
+                BaseWisdom = data.BaseWisdom > 0 ? data.BaseWisdom : 10,
+                BaseCharisma = data.BaseCharisma > 0 ? data.BaseCharisma : 10,
+
                 // Class and race
                 Class = data.Class,
                 Race = data.Race,
@@ -2113,8 +2129,15 @@ public partial class GameEngine : Node
                     var equipmentId = kvp.Value;
                     npc.EquippedItems[slot] = equipmentId;
                 }
-                npc.RecalculateStats();
             }
+
+            // CRITICAL: Validate and fix base stats before RecalculateStats
+            // Old saves or corrupted NPCs may have 0 base stats, which causes
+            // RecalculateStats to zero out all stats (STR: 0, DEF: -18 issues)
+            ValidateAndFixNPCBaseStats(npc);
+
+            // Now recalculate stats with valid base stats
+            npc.RecalculateStats();
 
             // Sanity check: ensure NPC has valid HP (fix corrupted saves)
             long minHP = 20 + (npc.Level * 10);
@@ -2165,6 +2188,118 @@ public partial class GameEngine : Node
 
         GD.Print($"Restored {npcData.Count} NPCs from save data");
         await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Validate and fix NPC base stats if they are invalid (0 or negative).
+    /// This is critical for saves from older versions where base stats weren't saved,
+    /// or for corrupted NPCs. Without valid base stats, RecalculateStats() will
+    /// zero out all stats causing STR: 0, DEF: -18 type issues.
+    /// </summary>
+    private void ValidateAndFixNPCBaseStats(NPC npc)
+    {
+        bool needsFix = false;
+        int level = npc.Level > 0 ? npc.Level : 1;
+
+        // Check if base stats are invalid (0 or negative)
+        if (npc.BaseStrength <= 0)
+        {
+            // Calculate reasonable base strength for level and class
+            npc.BaseStrength = 10 + (level * 5);
+            if (npc.Class == CharacterClass.Warrior || npc.Class == CharacterClass.Barbarian)
+                npc.BaseStrength += level * 2;
+            needsFix = true;
+        }
+
+        if (npc.BaseDefence <= 0)
+        {
+            npc.BaseDefence = 10 + (level * 3);
+            needsFix = true;
+        }
+
+        if (npc.BaseAgility <= 0)
+        {
+            npc.BaseAgility = 10 + (level * 3);
+            needsFix = true;
+        }
+
+        if (npc.BaseDexterity <= 0)
+        {
+            npc.BaseDexterity = 10 + (level * 2);
+            if (npc.Class == CharacterClass.Assassin)
+                npc.BaseDexterity += level * 3;
+            needsFix = true;
+        }
+
+        if (npc.BaseStamina <= 0)
+        {
+            npc.BaseStamina = 10 + (level * 4);
+            needsFix = true;
+        }
+
+        if (npc.BaseConstitution <= 0)
+        {
+            npc.BaseConstitution = 10 + (level * 2);
+            needsFix = true;
+        }
+
+        if (npc.BaseIntelligence <= 0)
+        {
+            npc.BaseIntelligence = 10 + (level * 2);
+            if (npc.Class == CharacterClass.Magician)
+                npc.BaseIntelligence += level * 3;
+            needsFix = true;
+        }
+
+        if (npc.BaseWisdom <= 0)
+        {
+            npc.BaseWisdom = 10 + (level * 2);
+            if (npc.Class == CharacterClass.Cleric || npc.Class == CharacterClass.Paladin)
+                npc.BaseWisdom += level * 2;
+            needsFix = true;
+        }
+
+        if (npc.BaseCharisma <= 0)
+        {
+            npc.BaseCharisma = 10;
+            needsFix = true;
+        }
+
+        if (npc.BaseMaxHP <= 0)
+        {
+            // Calculate based on class
+            npc.BaseMaxHP = npc.Class switch
+            {
+                CharacterClass.Warrior or CharacterClass.Barbarian => 100 + (level * 50),
+                CharacterClass.Magician => 50 + (level * 25),
+                CharacterClass.Cleric or CharacterClass.Paladin => 80 + (level * 40),
+                CharacterClass.Assassin => 70 + (level * 35),
+                CharacterClass.Sage => 90 + (level * 45),
+                _ => 80 + (level * 40)
+            };
+            needsFix = true;
+        }
+
+        if (npc.BaseMaxMana <= 0 && (npc.Class == CharacterClass.Magician ||
+            npc.Class == CharacterClass.Cleric || npc.Class == CharacterClass.Paladin ||
+            npc.Class == CharacterClass.Sage))
+        {
+            npc.BaseMaxMana = npc.Class switch
+            {
+                CharacterClass.Magician => 50 + (level * 30),
+                CharacterClass.Cleric or CharacterClass.Paladin => 40 + (level * 20),
+                CharacterClass.Sage => 30 + (level * 15),
+                _ => 0
+            };
+            needsFix = true;
+        }
+
+        if (needsFix)
+        {
+            UsurperRemake.Systems.DebugLogger.Instance.LogWarning("NPC",
+                $"Fixed corrupted base stats for {npc.Name} (Level {level} {npc.Class}): " +
+                $"STR={npc.BaseStrength}, DEF={npc.BaseDefence}, AGI={npc.BaseAgility}");
+        }
     }
 
     /// <summary>
@@ -2288,7 +2423,8 @@ public partial class GameEngine : Node
         {
             terminal.WriteLine($"An error occurred during character creation: {ex.Message}", "red");
             GD.PrintErr($"Character creation error: {ex}");
-            
+            UsurperRemake.Systems.DebugLogger.Instance.LogError("CRASH", $"Character creation error:\n{ex}");
+
             terminal.WriteLine("Please try again.", "yellow");
             var retry = await terminal.GetInputAsync("Would you like to try again? (Y/N): ");
             if (retry.ToUpper() == "Y")

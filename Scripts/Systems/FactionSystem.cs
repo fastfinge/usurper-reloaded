@@ -420,6 +420,7 @@ namespace UsurperRemake.Systems
 
         /// <summary>
         /// Get the chance (0-100) that an NPC from a faction will ambush the player
+        /// Note: This is now rolled ONCE per travel, not per NPC, so chances are reasonable
         /// </summary>
         public int GetAmbushChance(Faction? npcFaction)
         {
@@ -428,13 +429,13 @@ namespace UsurperRemake.Systems
             int standing = FactionStanding[npcFaction.Value];
             int baseChance = 0;
 
-            // Standing-based chance
+            // Standing-based chance (tuned for single roll per travel)
             if (standing <= -100)
-                baseChance = 25;  // Hated: 25% base chance
+                baseChance = 15;  // Hated: 15% base chance
             else if (standing <= -50)
-                baseChance = 15;  // Hostile: 15% base chance
+                baseChance = 8;   // Hostile: 8% base chance
             else if (standing <= -25)
-                baseChance = 5;   // Unfriendly: 5% base chance
+                baseChance = 3;   // Unfriendly: 3% base chance
 
             // Faction rivalry bonus
             if (PlayerFaction != null)
@@ -443,16 +444,16 @@ namespace UsurperRemake.Systems
                 if ((PlayerFaction == Faction.TheFaith && npcFaction == Faction.TheShadows) ||
                     (PlayerFaction == Faction.TheShadows && npcFaction == Faction.TheFaith))
                 {
-                    baseChance += 15;
+                    baseChance += 8;
                 }
                 // Shadows vs Crown - anti-government aggression
                 else if (PlayerFaction == Faction.TheCrown && npcFaction == Faction.TheShadows)
                 {
-                    baseChance += 10;
+                    baseChance += 5;
                 }
             }
 
-            return Math.Min(50, baseChance); // Cap at 50%
+            return Math.Min(30, baseChance); // Cap at 30%
         }
 
         /// <summary>

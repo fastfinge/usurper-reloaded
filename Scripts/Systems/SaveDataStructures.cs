@@ -461,6 +461,17 @@ namespace UsurperRemake.Systems
         public long WeapPow { get; set; }
         public long ArmPow { get; set; }
 
+        // Base stats (without equipment bonuses) - for RecalculateStats
+        public long BaseStrength { get; set; }
+        public long BaseDefence { get; set; }
+        public long BaseDexterity { get; set; }
+        public long BaseAgility { get; set; }
+        public long BaseStamina { get; set; }
+        public long BaseConstitution { get; set; }
+        public long BaseIntelligence { get; set; }
+        public long BaseWisdom { get; set; }
+        public long BaseCharisma { get; set; }
+
         // Class and race
         public CharacterClass Class { get; set; }
         public CharacterRace Race { get; set; }

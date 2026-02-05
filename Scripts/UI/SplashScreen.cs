@@ -34,7 +34,7 @@ namespace UsurperRemake.UI
                 "███                                                                          ███",
                 "████████████████████████████████████████████████████████████████████████████████",
                 "███                                                                          ███",
-                "███              A Classic BBS Door Game - Reimagined for 2025               ███",
+                "███              A Classic BBS Door Game - Reimagined for 2026               ███",
                 "███                                                                          ███",
                 "███                    Based on the original by Jakob Dangarden             ███",
                 "███                                                                          ███",
@@ -63,7 +63,7 @@ namespace UsurperRemake.UI
                 {
                     terminal.SetColor("bright_yellow");
                 }
-                else if (line.Contains("Reimagined for 2025"))
+                else if (line.Contains("Reimagined for 2026"))
                 {
                     terminal.SetColor("bright_cyan");
                 }
