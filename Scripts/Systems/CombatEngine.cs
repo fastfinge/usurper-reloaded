@@ -195,7 +195,11 @@ public partial class CombatEngine
         // Show combat introduction
         terminal.ClearScreen();
         terminal.SetColor("bright_red");
-        terminal.WriteLine("═══ COMBAT ═══");
+        // Screen reader friendly header
+        if (player is Player p && p.ScreenReaderMode)
+            terminal.WriteLine("--- COMBAT ---");
+        else
+            terminal.WriteLine("═══ COMBAT ═══");
         terminal.WriteLine("");
 
         if (monsters.Count == 1)
@@ -407,7 +411,11 @@ public partial class CombatEngine
     {
         terminal.ClearScreen();
         terminal.SetColor("bright_red");
-        terminal.WriteLine("═══ COMBAT ═══");
+        // Screen reader friendly header
+        if (player is Player p && p.ScreenReaderMode)
+            terminal.WriteLine("--- COMBAT ---");
+        else
+            terminal.WriteLine("═══ COMBAT ═══");
         terminal.WriteLine("");
         
         // Monster appearance
@@ -2895,6 +2903,13 @@ public partial class CombatEngine
     /// </summary>
     private void DisplayCombatStatus(List<Monster> monsters, Character player)
     {
+        // Check for screen reader mode
+        if (player is Player p && p.ScreenReaderMode)
+        {
+            DisplayCombatStatusScreenReader(monsters, player);
+            return;
+        }
+
         terminal.WriteLine("");
         terminal.SetColor("bright_cyan");
         terminal.WriteLine("╔══════════════════════════════════════════════════════════╗");
@@ -3073,6 +3088,133 @@ public partial class CombatEngine
 
         terminal.SetColor("bright_cyan");
         terminal.WriteLine("╚══════════════════════════════════════════════════════════╝");
+        terminal.WriteLine("");
+    }
+
+    /// <summary>
+    /// Screen reader friendly version of combat status display.
+    /// Uses plain text instead of box-drawing characters and visual bars.
+    /// </summary>
+    private void DisplayCombatStatusScreenReader(List<Monster> monsters, Character player)
+    {
+        terminal.WriteLine("");
+        terminal.SetColor("bright_cyan");
+        terminal.WriteLine("--- COMBAT STATUS ---");
+        terminal.WriteLine("");
+
+        // Show all living monsters
+        terminal.SetColor("yellow");
+        terminal.WriteLine("Enemies:");
+        int monsterNum = 0;
+        for (int i = 0; i < monsters.Count; i++)
+        {
+            var monster = monsters[i];
+            if (!monster.IsAlive) continue;
+            monsterNum++;
+
+            double hpPercent = Math.Max(0, Math.Min(100, (double)monster.HP / Math.Max(1, monster.MaxHP) * 100));
+            string hpStatus = hpPercent > 75 ? "healthy" : hpPercent > 50 ? "wounded" : hpPercent > 25 ? "badly hurt" : "near death";
+
+            terminal.SetColor(monster.IsBoss ? "bright_red" : "white");
+            terminal.Write($"  {i + 1}. {monster.Name}");
+            terminal.SetColor("gray");
+            terminal.Write($" - HP: {monster.HP} of {monster.MaxHP} ({(int)hpPercent} percent, {hpStatus})");
+
+            var monsterStatuses = GetMonsterStatusString(monster);
+            if (!string.IsNullOrEmpty(monsterStatuses))
+            {
+                terminal.Write($" [{monsterStatuses}]");
+            }
+            terminal.WriteLine("");
+        }
+
+        terminal.WriteLine("");
+        terminal.SetColor("bright_white");
+        terminal.WriteLine("Your Status:");
+
+        // Player HP
+        double playerHpPercent = Math.Max(0, Math.Min(100, (double)player.HP / Math.Max(1, player.MaxHP) * 100));
+        string playerHpStatus = playerHpPercent > 75 ? "healthy" : playerHpPercent > 50 ? "wounded" : playerHpPercent > 25 ? "badly hurt" : "critical";
+        terminal.SetColor(playerHpPercent > 50 ? "green" : playerHpPercent > 25 ? "yellow" : "red");
+        terminal.WriteLine($"  HP: {player.HP} of {player.MaxHP} ({(int)playerHpPercent} percent, {playerHpStatus})");
+
+        // Player MP
+        if (player.MaxMana > 0)
+        {
+            double mpPercent = Math.Max(0, Math.Min(100, (double)player.Mana / player.MaxMana * 100));
+            terminal.SetColor("cyan");
+            terminal.WriteLine($"  MP: {player.Mana} of {player.MaxMana} ({(int)mpPercent} percent)");
+        }
+
+        // Stamina
+        if (player.MaxCombatStamina > 0)
+        {
+            double stPercent = Math.Max(0, Math.Min(100, (double)player.CurrentCombatStamina / player.MaxCombatStamina * 100));
+            terminal.SetColor("yellow");
+            terminal.WriteLine($"  Stamina: {player.CurrentCombatStamina} of {player.MaxCombatStamina} ({(int)stPercent} percent)");
+        }
+
+        // Potions
+        terminal.SetColor("magenta");
+        terminal.WriteLine($"  Potions: {player.Healing} of {player.MaxPotions}");
+
+        // Combat stats
+        terminal.SetColor("gray");
+        terminal.WriteLine($"  Attack: {player.Strength + player.WeapPow}, Defense: {player.Defence + player.ArmPow + player.MagicACBonus}");
+
+        // Damage absorption
+        if (player.DamageAbsorptionPool > 0)
+        {
+            terminal.SetColor("magenta");
+            terminal.WriteLine($"  Magic Shield: {player.DamageAbsorptionPool} damage remaining");
+        }
+
+        // Status effects
+        if (player.ActiveStatuses.Count > 0)
+        {
+            terminal.SetColor("gray");
+            terminal.Write("  Status effects: ");
+            DisplayPlayerStatusEffects(player);
+            terminal.WriteLine("");
+        }
+
+        // Teammates
+        if (currentTeammates != null && currentTeammates.Count > 0)
+        {
+            terminal.WriteLine("");
+            terminal.SetColor("gray");
+            terminal.WriteLine("Allies:");
+
+            foreach (var teammate in currentTeammates)
+            {
+                if (!teammate.IsAlive) continue;
+
+                double tmHpPercent = Math.Max(0, Math.Min(100, (double)teammate.HP / teammate.MaxHP * 100));
+                string tmStatus = tmHpPercent > 75 ? "healthy" : tmHpPercent > 50 ? "wounded" : tmHpPercent > 25 ? "badly hurt" : "critical";
+
+                terminal.SetColor("white");
+                terminal.Write($"  {teammate.DisplayName}");
+                terminal.SetColor(tmHpPercent > 50 ? "green" : tmHpPercent > 25 ? "yellow" : "red");
+                terminal.Write($" - HP: {teammate.HP} of {teammate.MaxHP} ({(int)tmHpPercent} percent, {tmStatus})");
+
+                bool isHealer = teammate.Class == CharacterClass.Cleric || teammate.Class == CharacterClass.Paladin;
+                if (isHealer && teammate.MaxMana > 0)
+                {
+                    terminal.SetColor("cyan");
+                    terminal.Write($", MP: {teammate.Mana} of {teammate.MaxMana}");
+                }
+                else if (teammate.Healing > 0)
+                {
+                    terminal.SetColor("magenta");
+                    terminal.Write($", Potions: {teammate.Healing}");
+                }
+                terminal.WriteLine("");
+            }
+        }
+
+        terminal.WriteLine("");
+        terminal.SetColor("bright_cyan");
+        terminal.WriteLine("---------------------");
         terminal.WriteLine("");
     }
 
