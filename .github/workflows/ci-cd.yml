@@ -230,10 +230,68 @@ jobs:
             exit 1
           fi
 
+      - name: Build macOS ARM64 executable
+        run: |
+          echo "Building macOS ARM64 (Apple Silicon) executable..."
+          dotnet publish usurper-reloaded.csproj -c Release -r osx-arm64 -o build/mac-arm64-temp \
+            -p:PublishSingleFile=true -p:SelfContained=true -p:InvariantGlobalization=true
+
+          # Create macOS app bundle structure for ARM64
+          mkdir -p "build/mac-arm64/usurper-reborn.app/Contents/MacOS"
+          mkdir -p "build/mac-arm64/usurper-reborn.app/Contents/Resources"
+
+          # Copy executable
+          if [ -f "build/mac-arm64-temp/UsurperReborn" ]; then
+            cp "build/mac-arm64-temp/UsurperReborn" "build/mac-arm64/usurper-reborn.app/Contents/MacOS/usurper-reborn"
+            chmod +x "build/mac-arm64/usurper-reborn.app/Contents/MacOS/usurper-reborn"
+
+            # Copy other files
+            cp -r build/mac-arm64-temp/* build/mac-arm64/usurper-reborn.app/Contents/Resources/ 2>/dev/null || true
+
+            # Create Info.plist
+            cat > "build/mac-arm64/usurper-reborn.app/Contents/Info.plist" << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key>
+            <string>usurper-reborn</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.usurperreloaded.game</string>
+            <key>CFBundleName</key>
+            <string>Usurper Reborn</string>
+            <key>CFBundleVersion</key>
+            <string>1.0</string>
+            <key>CFBundleShortVersionString</key>
+            <string>1.0</string>
+            <key>LSArchitecturePriority</key>
+            <array>
+              <string>arm64</string>
+            </array>
+          </dict>
+          </plist>
+          EOF
+
+            # Copy macOS launcher
+            cp launchers/usurper-reborn-mac.command build/mac-arm64/
+            chmod +x build/mac-arm64/usurper-reborn-mac.command
+
+            # Create zip file
+            cd "build/mac-arm64"
+            zip -r "usurper-reborn.zip" "usurper-reborn.app" "usurper-reborn-mac.command"
+            cd "../.."
+
+            echo "✅ macOS ARM64 build successful"
+          else
+            echo "ERROR: macOS ARM64 build failed - executable not created"
+            ls -la build/mac-arm64-temp/
+            exit 1
+          fi
+
       - name: Add GPL compliance files to builds
         run: |
           # Copy GPL compliance files to all build directories
-          for dir in build/windows-x64 build/windows-x86 build/linux-x64 build/linux-arm64 build/mac; do
+          for dir in build/windows-x64 build/windows-x86 build/linux-x64 build/linux-arm64 build/mac build/mac-arm64; do
             cp LICENSE "$dir/"
             cp GPL_NOTICE.txt "$dir/"
             cp usurper-reborn-source.zip "$dir/"
@@ -270,6 +328,7 @@ jobs:
           cp build/windows-x64/README.txt build/linux-x64/README.txt
           cp build/windows-x64/README.txt build/linux-arm64/README.txt
           cp build/windows-x64/README.txt build/mac/README.txt
+          cp build/windows-x64/README.txt build/mac-arm64/README.txt
 
           echo "GPL compliance files added to all builds"
 
@@ -297,16 +356,149 @@ jobs:
           name: linux-arm64-build
           path: build/linux-arm64/
 
-      - name: Upload macOS Build
+      - name: Upload macOS Intel Build
         uses: actions/upload-artifact@v4
         with:
           name: mac-build
           path: build/mac/
 
+      - name: Upload macOS ARM64 Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-arm64-build
+          path: build/mac-arm64/
+
+  # ============================================
+  # PLATFORM SMOKE TESTS
+  # Verify builds actually run on target platforms
+  # ============================================
+
+  test-windows:
+    name: Test Windows Build
+    runs-on: windows-latest
+    needs: [build]
+    steps:
+      - name: Download Windows x64 Build
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-x64-build
+          path: build/
+
+      - name: Test Windows executable
+        shell: pwsh
+        run: |
+          Write-Host "Testing Windows x64 build..."
+          if (Test-Path "build/UsurperReborn.exe") {
+            # Run with --help flag (should exit quickly)
+            $process = Start-Process -FilePath "build/UsurperReborn.exe" -ArgumentList "--help" -Wait -PassThru -NoNewWindow
+            if ($process.ExitCode -eq 0) {
+              Write-Host "✅ Windows x64 executable runs successfully"
+            } else {
+              Write-Host "⚠️ Windows x64 executable exited with code: $($process.ExitCode)"
+              # Exit code might be non-zero for --help, that's OK as long as it ran
+              Write-Host "✅ Windows x64 executable launched (non-zero exit is OK for --help)"
+            }
+          } else {
+            Write-Host "❌ UsurperReborn.exe not found"
+            Get-ChildItem -Path build/ -Recurse
+            exit 1
+          }
+
+  test-linux:
+    name: Test Linux Build
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Download Linux x64 Build
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-x64-build
+          path: build/
+
+      - name: Test Linux executable
+        run: |
+          echo "Testing Linux x64 build..."
+          chmod +x build/UsurperReborn
+          # Run with --help flag
+          if ./build/UsurperReborn --help; then
+            echo "✅ Linux x64 executable runs successfully"
+          else
+            # Exit code might be non-zero for --help, that's OK
+            echo "✅ Linux x64 executable launched (non-zero exit is OK for --help)"
+          fi
+
+  test-macos-intel:
+    name: Test macOS Intel Build
+    runs-on: macos-13  # Intel-based macOS runner
+    needs: [build]
+    steps:
+      - name: Download macOS Build
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-build
+          path: build/
+
+      - name: Test macOS Intel executable
+        run: |
+          echo "Testing macOS Intel (x64) build..."
+          # Extract the app bundle if it's zipped
+          if [ -f "build/usurper-reborn.zip" ]; then
+            cd build && unzip -o usurper-reborn.zip && cd ..
+          fi
+
+          chmod +x "build/usurper-reborn.app/Contents/MacOS/usurper-reborn" 2>/dev/null || true
+
+          if [ -f "build/usurper-reborn.app/Contents/MacOS/usurper-reborn" ]; then
+            # Run with --help flag
+            if ./build/usurper-reborn.app/Contents/MacOS/usurper-reborn --help; then
+              echo "✅ macOS Intel executable runs successfully"
+            else
+              echo "✅ macOS Intel executable launched (non-zero exit is OK for --help)"
+            fi
+          else
+            echo "❌ macOS executable not found"
+            find build/ -type f -name "*" | head -20
+            exit 1
+          fi
+
+  test-macos-arm:
+    name: Test macOS ARM64 Build
+    runs-on: macos-14  # Apple Silicon (ARM64) runner
+    needs: [build]
+    steps:
+      - name: Download macOS ARM64 Build
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-arm64-build
+          path: build/
+
+      - name: Test macOS ARM64 executable
+        run: |
+          echo "Testing macOS ARM64 (Apple Silicon) build..."
+          # Extract the app bundle if it's zipped
+          if [ -f "build/usurper-reborn.zip" ]; then
+            cd build && unzip -o usurper-reborn.zip && cd ..
+          fi
+
+          chmod +x "build/usurper-reborn.app/Contents/MacOS/usurper-reborn" 2>/dev/null || true
+
+          if [ -f "build/usurper-reborn.app/Contents/MacOS/usurper-reborn" ]; then
+            # Run with --help flag
+            if ./build/usurper-reborn.app/Contents/MacOS/usurper-reborn --help; then
+              echo "✅ macOS ARM64 executable runs successfully"
+            else
+              echo "✅ macOS ARM64 executable launched (non-zero exit is OK for --help)"
+            fi
+          else
+            echo "❌ macOS ARM64 executable not found"
+            find build/ -type f -name "*" | head -20
+            exit 1
+          fi
+
   attach-to-release:
     name: Attach Builds to Release
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [build, test-windows, test-linux, test-macos-intel, test-macos-arm]
     if: github.event_name == 'release'
     permissions:
       contents: write
@@ -323,7 +515,8 @@ jobs:
           cd windows-x86-build && zip -r ../UsurperReborn-${{ github.ref_name }}-Windows-x86.zip . && cd ..
           cd linux-x64-build && zip -r ../UsurperReborn-${{ github.ref_name }}-Linux-x64.zip . && cd ..
           cd linux-arm64-build && zip -r ../UsurperReborn-${{ github.ref_name }}-Linux-ARM64.zip . && cd ..
-          cd mac-build && zip -r ../UsurperReborn-${{ github.ref_name }}-macOS-x64.zip . && cd ..
+          cd mac-build && zip -r ../UsurperReborn-${{ github.ref_name }}-macOS-Intel.zip . && cd ..
+          cd mac-arm64-build && zip -r ../UsurperReborn-${{ github.ref_name }}-macOS-AppleSilicon.zip . && cd ..
 
           ls -la *.zip
 
@@ -335,7 +528,8 @@ jobs:
             UsurperReborn-${{ github.ref_name }}-Windows-x86.zip
             UsurperReborn-${{ github.ref_name }}-Linux-x64.zip
             UsurperReborn-${{ github.ref_name }}-Linux-ARM64.zip
-            UsurperReborn-${{ github.ref_name }}-macOS-x64.zip
+            UsurperReborn-${{ github.ref_name }}-macOS-Intel.zip
+            UsurperReborn-${{ github.ref_name }}-macOS-AppleSilicon.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

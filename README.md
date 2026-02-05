@@ -1,6 +1,6 @@
 # Usurper Reborn
 
-## ALPHA v0.18 - NPC Relationships
+## ALPHA v0.18 - NPC Relationships / Systems / Verbose Mode
 
 **FREE AND OPEN SOURCE SOFTWARE - GPL v2 Licensed**
 
@@ -318,16 +318,17 @@ How long to complete Usurper Reborn:
 
 *Note: Playtime varies based on difficulty mode and exploration style.*
 
-### BBS Door Mode (NEW in v0.6)
+### BBS Door Mode
 Run Usurper Reborn as a door game on modern BBS software:
 - **DOOR32.SYS Support** - Modern format with socket handle for telnet connections
 - **DOOR.SYS Support** - Legacy 52-line format with console I/O fallback
-- **Synchronet BBS** - Full compatibility with socket-based I/O
+- **Synchronet BBS** - Full compatibility with socket-based and Standard I/O modes
 - **Mystic BBS** - Works with standard door configuration
 - **Multi-Node Support** - Each node gets isolated session handling
 - **BBS-Isolated Saves** - Saves stored per-BBS to prevent user conflicts
 - **Character Name Locking** - Character names locked to BBS username for consistency
 - **Cross-Platform** - Works on Windows x64/x86, Linux x64/ARM64, and macOS
+- **Verbose Debug Mode** - `--verbose` flag for troubleshooting connection issues
 
 **Quick Setup for Sysops:**
 ```bash
@@ -335,6 +336,8 @@ Run Usurper Reborn as a door game on modern BBS software:
 UsurperReborn --door <dropfile>    # Auto-detect DOOR32.SYS or DOOR.SYS
 UsurperReborn --door32 <path>      # Explicit DOOR32.SYS
 UsurperReborn --doorsys <path>     # Explicit DOOR.SYS
+UsurperReborn --stdio              # Force Standard I/O mode (recommended for Synchronet)
+UsurperReborn --verbose            # Enable verbose debug output
 UsurperReborn --local              # Local testing mode
 ```
 
@@ -342,24 +345,12 @@ For detailed BBS setup instructions, see [DOCS/BBS_DOOR_SETUP.md](DOCS/BBS_DOOR_
 
 ## What's Still In Development
 
-### Missing from Original Usurper
-- Castle politics (some throne challenges implemented, royal functions pending)
-
 ### Future Enhancements
 - Audio and enhanced ANSI art
 - Additional companion personal quest storylines
+- Expanded faction recruitment ceremonies
 
-### Recently Completed (v0.9)
-- **PostHog Analytics Integration** - Opt-in telemetry system for alpha testing insights
-  - Tracks combat outcomes, shop transactions, achievements, dungeon exploration
-  - Tracks level ups, quests accepted/completed, player deaths, session statistics
-  - Privacy-focused: GeoIP disabled, no location tracking, fully opt-in
-  - Powers DAU/WAU/Retention dashboards for game balance analysis
-- **Quest Telemetry** - Track quest acceptance and completion rates
-- **Session Analytics** - Playtime, final level, deaths, and monsters killed on quit
-- **Dungeon Feature Interactions** - Enhanced room features with skill-based outcomes
-
-### Completed in v0.18 - NPC Relationships
+### Completed in v0.18 - NPC Relationships / Systems / Verbose Mode
 
 **Five New Narrative Systems:**
 - **Dream System** - Prophetic dreams during rest at the Inn that become more vivid as you approach the truth. 20+ unique dreams tied to player level and awakening progress.
@@ -372,6 +363,17 @@ For detailed BBS setup instructions, see [DOCS/BBS_DOOR_SETUP.md](DOCS/BBS_DOOR_
 - **NPC-to-NPC Marriage** - NPCs autonomously find compatible partners and marry based on attraction, class, alignment, and faction compatibility.
 - **Player Affair System** - Pursue married NPCs, progress through affair milestones, and potentially convince them to leave their spouse for you.
 - **Scandal News** - Marriage and affair drama generates realm-wide news announcements.
+
+**Accessibility & Quality of Life:**
+- **Screen Reader Mode** - Full screen reader support for dungeon combat, PvP combat menus, and all game interfaces
+- **Verbose BBS Debug Mode** - New `--verbose` flag shows raw drop file contents and connection debugging
+- **Combat UI Improvements** - PvP combat menu redesigned to match dungeon combat quality
+
+**Bug Fixes:**
+- Fixed NPC stats showing 0 in faction ambush encounters (corrupted base stats)
+- Fixed constant faction ambushes (was rolling per-NPC instead of per-travel)
+- Fixed NPC marriage state not persisting across save/load
+- Fixed affair system issues (dead spouse checks, value caps, divorce logic)
 
 ### Completed in v0.8
 - **NPC Teammate Combat AI** - NPCs now cast offensive spells, use class abilities, and heal more intelligently
@@ -468,11 +470,13 @@ Join our Discord server for discussions, feedback, and updates:
 - Romance/marriage/family systems
 - Story progression and endings
 
-### Known Issues (Alpha v0.10)
+### Known Issues (Alpha v0.18)
 - Some edge cases in combat may cause unexpected behavior
 - NPC AI occasionally makes suboptimal decisions
 - Save files from earlier alpha versions may not be fully compatible
-- BBS socket mode may not work on all Linux distributions (falls back to console I/O)
+- BBS socket mode may not work on all Linux distributions (use `--stdio` flag as fallback)
+- Faction recruitment UI is still being refined
+- Some Town NPC stories may not trigger if the NPC hasn't spawned in your game
 
 ### How to Report Bugs
 1. Join Discord: https://discord.gg/EZhwgDT6Ta
@@ -482,4 +486,4 @@ Join our Discord server for discussions, feedback, and updates:
 
 ---
 
-**Status**: ALPHA v0.10 - Quality of Life Update
+**Status**: ALPHA v0.18 - NPC Relationships / Systems / Verbose Mode

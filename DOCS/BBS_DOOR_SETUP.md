@@ -1,18 +1,42 @@
 # Usurper Reborn - BBS Door Setup Guide
 
-This guide explains how to configure Usurper Reborn to run as a door game on BBS software like Synchronet, Mystic, or other systems that support DOOR32.SYS or DOOR.SYS drop files.
+This guide explains how to configure Usurper Reborn to run as a door game on BBS software like Synchronet, Mystic, EleBBS, or other systems that support DOOR32.SYS or DOOR.SYS drop files.
 
 ## Overview
 
-Usurper Reborn supports running as a traditional BBS door game, allowing users to play through telnet/SSH connections managed by BBS software. The game reads user information from standard drop files and communicates via inherited socket handles or console I/O.
+Usurper Reborn supports running as a traditional BBS door game, allowing users to play through telnet/SSH connections managed by BBS software. The game reads user information from standard drop files and communicates via inherited socket handles, serial/FOSSIL ports, or console I/O.
+
+## BBS Compatibility
+
+| BBS Software | Recommended Mode | Status |
+|--------------|------------------|--------|
+| **Synchronet** | Standard I/O (`--stdio`) | Fully tested |
+| **Synchronet** | Socket I/O | Works |
+| **Mystic BBS** | Socket I/O | Should work |
+| **EleBBS** | FOSSIL (`--fossil COM1`) | Should work |
+| **EleBBS** | Standard I/O (`--stdio`) | Should work |
+| **GameSrv** | Via DOSEMU/DOSBox | Should work |
+| **ENiGMA½** | Standard I/O | Should work |
 
 ## Supported Drop File Formats
 
 ### DOOR32.SYS (Recommended)
-Modern 11-line format with socket handle support for telnet connections.
+
+Modern 11-line format with socket handle support for telnet connections. Created by Maarten Bekers (EleBBS) and James Coyle (Mystic BBS) to handle telnet connections on 32-bit systems.
+
+**Key features:**
+- Socket handle inheritance for direct telnet I/O
+- Works on Windows, Linux, and macOS
+- Supported by Synchronet, Mystic, EleBBS, and others
 
 ### DOOR.SYS
-Legacy 52-line format. Works with console I/O (no direct socket support).
+
+Legacy 52-line format (originally 31 lines). Works with serial/FOSSIL ports or console I/O.
+
+**Key features:**
+- COM port support for FOSSIL drivers
+- Widely compatible with older BBS software
+- Falls back to console I/O when no serial port available
 
 ## Command Line Options
 
@@ -33,8 +57,8 @@ UsurperReborn --help             # Show help
 
 | Flag | Description |
 |------|-------------|
-| `--stdio` | Forces Standard I/O mode using ANSI escape codes. Recommended for Synchronet. |
-| `--fossil <port>` | Forces FOSSIL/serial mode on the specified COM port (e.g., `COM1`). |
+| `--stdio` | Forces Standard I/O mode using ANSI escape codes. Recommended for Synchronet and most modern BBSes. |
+| `--fossil <port>` | Forces FOSSIL/serial mode on the specified COM port (e.g., `COM1`). Use with FOSSIL drivers. |
 | `--verbose` or `-v` | Enables detailed debug output for troubleshooting connection issues. |
 
 ## Synchronet BBS Setup
@@ -126,6 +150,65 @@ Door EXE     : UsurperReborn --door %3
 
 The `%3` parameter passes the path to DOOR32.SYS.
 
+## EleBBS Setup
+
+EleBBS was co-creator of the DOOR32.SYS standard. Configuration can vary depending on your EleBBS version.
+
+### Step 1: Copy Game Files
+
+Copy files to your EleBBS doors directory:
+```
+C:\ELE\DOORS\USURPER\
+```
+
+### Step 2: Configure Door
+
+**Option A: Standard I/O Mode (Recommended)**
+
+```
+Door Path    : C:\ELE\DOORS\USURPER\
+Door Command : UsurperReborn --door32 *N\door32.sys --stdio
+```
+
+**Option B: FOSSIL Mode**
+
+If your EleBBS is configured with a FOSSIL driver:
+
+```
+Door Path    : C:\ELE\DOORS\USURPER\
+Door Command : UsurperReborn --doorsys *N\door.sys --fossil COM1
+```
+
+**Option C: Direct Socket (may require *Y flag)**
+
+Some EleBBS versions need the `*Y` parameter instead of `*W` for proper socket handle passing:
+
+```
+Door Command : UsurperReborn --door32 *N\door32.sys *Y
+```
+
+### Troubleshooting EleBBS
+
+If the door doesn't connect properly:
+1. Try `--stdio` flag first (most compatible)
+2. Use `--verbose` to see what's happening
+3. Check if EleBBS is passing a valid socket handle in DOOR32.SYS
+4. Try FOSSIL mode with `--fossil COM1` if socket mode fails
+
+## GameSrv Setup
+
+GameSrv is Rick Parrish's door game server that can run modern doors on legacy BBS systems.
+
+### Configuration
+
+GameSrv handles the DOOR32.SYS generation automatically. Configure Usurper Reborn as:
+
+```
+Door EXE: UsurperReborn --door32 door32.sys --stdio
+```
+
+GameSrv will create the drop file and handle the connection.
+
 ## Example Drop Files
 
 ### DOOR32.SYS Example
@@ -156,7 +239,7 @@ CyberKnight
 | 7 | CyberKnight | User's alias/handle |
 | 8 | 100 | Security level |
 | 9 | 60 | Time remaining (minutes) |
-| 10 | 1 | Emulation (0=ASCII, 1=ANSI) |
+| 10 | 1 | Emulation (0=ASCII, 1=ANSI, 2=Avatar, 3=RIP, 4=MaxGfx) |
 | 11 | 1 | Node number |
 
 ### DOOR.SYS Example (First 31 lines)
@@ -270,36 +353,72 @@ Verbose mode provides:
 [VERBOSE] Press Enter to continue...
 ```
 
-### "Could not parse drop file"
+### Common Issues
+
+#### "Could not parse drop file"
 - Use `--verbose` to see the raw drop file contents
 - Verify the drop file exists at the specified path
 - Check file permissions
 - Ensure the file format matches DOOR32.SYS or DOOR.SYS specifications
+- On Linux, check for case sensitivity (`door32.sys` vs `DOOR32.SYS`)
 
-### "Failed to initialize socket"
+#### "Failed to initialize socket"
 - Use `--verbose` to see the socket handle value from the drop file
-- The socket handle from DOOR32.SYS may be invalid
+- The socket handle from DOOR32.SYS may be invalid or not inherited
 - Try using `--stdio` flag for Standard I/O mode instead
 - Try using DOOR.SYS instead (falls back to console I/O)
 - Verify your BBS is configured to pass socket handles
+- On Windows, socket handles require proper inheritance flags
 
-### No output / garbled text
+#### No output / garbled text
 - Ensure terminal emulation is set to ANSI
 - Check that the BBS is not intercepting I/O
 - Verify "Native Executable" is set to Yes
 - Try adding `--stdio` flag to use ANSI escape codes
+- Check if the terminal supports CP437 character set
 
-### Connection drops immediately
+#### Connection drops immediately
 - Use `--verbose` to identify where initialization fails
 - Check the command line path is correct
 - Verify all DLL dependencies are present
 - Look for error messages in the BBS log
+- Ensure the door is being executed directly (not through a batch file on Win9x)
 
-### Output shows locally but not remotely
+#### Output shows locally but not remotely
 1. Try `--stdio` flag for Standard I/O mode
 2. Use `--verbose` to see detailed connection info
 3. Check your DOOR32.SYS has correct CommType (2=telnet) and socket handle
-4. Verify Synchronet's I/O Method matches your command line flags
+4. Verify your BBS's I/O Method matches your command line flags
+
+#### FOSSIL/Serial issues
+- Verify the COM port exists and is available
+- Check that no other application is using the port
+- Ensure FOSSIL driver is installed and configured
+- Try a different baud rate if connection is unstable
+
+## Technical Details
+
+### Socket Handle Inheritance
+
+When using DOOR32.SYS with telnet connections (CommType=2), the BBS passes a socket handle that the door inherits:
+
+- **Windows**: Uses `SafeSocketHandle` with handle inheritance
+- **Linux**: Uses file descriptor inheritance (standard Unix behavior)
+- **Fallback**: If socket initialization fails, the game falls back to console I/O
+
+### Character Set Support
+
+Usurper Reborn converts Unicode characters to CP437 (the standard BBS character set) for compatibility with traditional terminals. This includes:
+- Box-drawing characters (single and double line)
+- Shading blocks (░▒▓█)
+- Special symbols (♠♣♥♦ etc.)
+
+### ANSI Color Support
+
+The game uses standard ANSI escape codes (SGR sequences) for colors:
+- 8 basic colors (30-37)
+- 8 bright colors (90-97)
+- Reset sequence (0)
 
 ## Log Output
 
@@ -326,7 +445,12 @@ By default, saves are stored in:
 <game directory>/Saves/
 ```
 
-In BBS mode, the player name from the drop file is used to locate/create save files.
+In BBS mode, saves are isolated per-BBS:
+```
+<game directory>/Saves/<BBS Name>/
+```
+
+The player name from the drop file is used to locate/create save files, and character names are locked to BBS usernames for consistency.
 
 ## Platform Notes
 
@@ -334,6 +458,7 @@ In BBS mode, the player name from the drop file is used to locate/create save fi
 - Use `UsurperReborn.exe`
 - Ensure .NET 8.0 runtime is installed (or use self-contained build)
 - Socket handle inheritance works natively
+- Both x64 and x86 builds available for maximum compatibility
 
 ### Linux
 - Use `./UsurperReborn`
@@ -341,6 +466,7 @@ In BBS mode, the player name from the drop file is used to locate/create save fi
 - Build for Linux: `dotnet publish -c Release -r linux-x64 --self-contained`
 - Socket handle (file descriptor) inheritance is supported
 - If socket mode fails, the game automatically falls back to console I/O
+- Drop file names may be lowercase (`door32.sys`) - the game checks both cases
 - For DOSEMU-based setups, consider using the Windows build with Wine
 
 #### Synchronet on Linux
@@ -357,11 +483,19 @@ If using Standard I/O mode, the game will use stdin/stdout instead of the socket
 - Use `./UsurperReborn`
 - Build: `dotnet publish -c Release -r osx-x64 --self-contained`
 - Self-contained builds recommended
+- Apple Silicon (ARM64) also supported: `-r osx-arm64`
 
 ## Support
 
 - **Discord**: https://discord.gg/EZhwgDT6Ta
 - **GitHub Issues**: https://github.com/binary-knight/usurper-reborn/issues
+
+## References
+
+- [DOOR32.SYS Specification](https://github.com/NuSkooler/ansi-bbs/blob/master/docs/dropfile_formats/door32_sys.txt)
+- [Synchronet Door Setup Guide](https://wiki.synchro.net/howto:door:index)
+- [Synchronet DOOR.SYS Reference](http://wiki.synchro.net/ref:door.sys)
+- [GameSrv Door Server](https://www.gamesrv.ca/)
 
 ---
 
