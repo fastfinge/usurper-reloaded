@@ -2165,6 +2165,7 @@ public class DevMenuLocation : BaseLocation
         terminal.SetColor("cyan");
         terminal.WriteLine("    - All 14 tracked stats (monsters killed, gold earned, etc.)");
         terminal.WriteLine("    - All 47 achievements linked to those stats");
+        terminal.WriteLine("    - LOCAL achievements on current character (prevents re-sync)");
         terminal.WriteLine("");
 
         terminal.SetColor("yellow");
@@ -2180,12 +2181,24 @@ public class DevMenuLocation : BaseLocation
 
             if (success)
             {
+                // Also clear LOCAL achievements to prevent SyncUnlockedToSteam from re-granting them
+                if (currentPlayer?.Achievements != null)
+                {
+                    int localCount = currentPlayer.Achievements.UnlockedAchievements.Count;
+                    currentPlayer.Achievements.UnlockedAchievements.Clear();
+                    terminal.SetColor("cyan");
+                    terminal.WriteLine($"  Cleared {localCount} local achievements to prevent re-sync.");
+                }
+
                 terminal.SetColor("bright_green");
                 terminal.WriteLine("");
                 terminal.WriteLine("  All Steam stats and achievements have been reset!");
+                terminal.WriteLine("  Local achievements also cleared to prevent auto-sync.");
                 terminal.WriteLine("");
                 terminal.SetColor("gray");
                 terminal.WriteLine("  Your stats will start fresh. Play the game to earn achievements properly.");
+                terminal.SetColor("yellow");
+                terminal.WriteLine("  Note: Save your game to persist the local achievement reset.");
             }
             else
             {
