@@ -211,6 +211,10 @@ namespace UsurperRemake.BBS
                 Console.Error.WriteLine($"Failed to open serial port: I/O error - {ex.Message}");
                 LogVerbose($"IOException: {ex.Message}");
                 LogVerbose("This usually means the COM port does not exist or is not accessible");
+                LogVerbose("");
+                LogVerbose("NOTE: If using a FOSSIL driver, .NET cannot access FOSSIL directly.");
+                LogVerbose("FOSSIL uses DOS INT 14h interrupts which .NET cannot access.");
+                LogVerbose("Solution: Use --stdio flag for Standard I/O mode instead.");
                 if (VerboseLogging)
                 {
                     Console.Error.WriteLine("[SERIAL] Press Enter to continue...");

@@ -347,11 +347,28 @@ namespace UsurperRemake.BBS
 
                     if (!serialTerminal.Initialize())
                     {
-                        Console.Error.WriteLine("Failed to initialize serial terminal");
-                        Console.Error.WriteLine("Falling back to local console mode");
+                        Console.Error.WriteLine("");
+                        Console.Error.WriteLine("═══════════════════════════════════════════════════════════════════════");
+                        Console.Error.WriteLine("  SERIAL/FOSSIL MODE FAILED");
+                        Console.Error.WriteLine("═══════════════════════════════════════════════════════════════════════");
+                        Console.Error.WriteLine("");
+                        Console.Error.WriteLine("  .NET applications cannot use traditional FOSSIL drivers.");
+                        Console.Error.WriteLine("  FOSSIL uses DOS INT 14h interrupts which .NET cannot access.");
+                        Console.Error.WriteLine("");
+                        Console.Error.WriteLine("  SOLUTION: Use --stdio flag for Standard I/O mode:");
+                        Console.Error.WriteLine("");
+                        Console.Error.WriteLine($"    UsurperReborn --doorsys \"{_sessionInfo.SourcePath}\" --stdio");
+                        Console.Error.WriteLine("");
+                        Console.Error.WriteLine("  Configure your BBS to redirect stdin/stdout to the door.");
+                        Console.Error.WriteLine("  Most modern BBS software (EleBBS, Mystic, etc.) supports this.");
+                        Console.Error.WriteLine("");
+                        Console.Error.WriteLine("  For EleBBS: Set 'Use STDIO' or 'Pipe I/O' in door configuration.");
+                        Console.Error.WriteLine("═══════════════════════════════════════════════════════════════════════");
+                        Console.Error.WriteLine("");
+
                         if (_verboseMode)
                         {
-                            Console.Error.WriteLine("[VERBOSE] FOSSIL/Serial initialization failed. Press Enter to continue...");
+                            Console.Error.WriteLine("[VERBOSE] Press Enter to continue with local fallback...");
                             Console.ReadLine();
                         }
                         _sessionInfo.CommType = ConnectionType.Local;

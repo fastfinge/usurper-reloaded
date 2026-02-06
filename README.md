@@ -1,6 +1,6 @@
 # Usurper Reborn
 
-## ALPHA v0.18 - NPC Relationships / Systems / Verbose Mode
+## ALPHA v0.19 - Steam Integration
 
 **FREE AND OPEN SOURCE SOFTWARE - GPL v2 Licensed**
 
@@ -350,6 +350,37 @@ For detailed BBS setup instructions, see [DOCS/BBS_DOOR_SETUP.md](DOCS/BBS_DOOR_
 - Additional companion personal quest storylines
 - Expanded faction recruitment ceremonies
 
+### Completed in v0.19 - Steam Integration
+
+**Steam Platform Support:**
+- **Steam Build Configuration** - Conditional compilation for Steam vs non-Steam builds
+- **Steamworks.NET Integration** - Achievement syncing with Steam when running through Steam client
+- **Steam Achievement Unlocking** - All 47 achievements sync to Steam profile
+- **Steam Stats Tracking** - Player statistics tracked via Steam Stats API
+- **Graceful Fallback** - Game works identically when not launched through Steam
+
+**Achievement System Fixes:**
+- **Chest Opening Tracking** - `treasure_hunter` achievement now properly tracks chests opened
+- **Secret Discovery Tracking** - `secret_finder` achievement now properly tracks secrets found
+- **Friendship Tracking** - `social_butterfly` achievement now tracks new friendships formed
+- **Easter Egg Implementation** - Hidden `easter_egg_1` achievement now discoverable in Dark Alley
+- **Flawless Victory Detection** - Fixed bug where `flawless_victory` checked total damage instead of combat damage
+
+**Team System Fix:**
+- **Gang Encounter Bug** - Fixed bug where joining a gang via street encounter resulted in empty team
+- **Real Team Integration** - Gang encounters now use actual existing teams from world simulation
+- **Proper Team Joining** - Players now correctly join teams with existing NPC members
+
+**BBS Door Mode Improvements:**
+- **FOSSIL Driver Guidance** - Clear error message when FOSSIL mode fails explaining .NET limitations
+- **--stdio Recommendation** - Automatic suggestion to use Standard I/O mode for FOSSIL-based BBSes
+- **EleBBS Compatibility** - Specific guidance for EleBBS users in error messages
+
+**Test Suite Improvements:**
+- **Streamlined Test Suite** - Removed redundant validation tests, keeping focused unit tests
+- **Deterministic Spell Tests** - Fixed flaky CastSpell test by setting proficiency level
+- **212 Passing Tests** - Clean test suite with no flaky tests
+
 ### Completed in v0.18 - NPC Relationships / Systems / Verbose Mode
 
 **Five New Narrative Systems:**
@@ -470,13 +501,14 @@ Join our Discord server for discussions, feedback, and updates:
 - Romance/marriage/family systems
 - Story progression and endings
 
-### Known Issues (Alpha v0.18)
+### Known Issues (Alpha v0.19)
 - Some edge cases in combat may cause unexpected behavior
 - NPC AI occasionally makes suboptimal decisions
 - Save files from earlier alpha versions may not be fully compatible
-- BBS socket mode may not work on all Linux distributions (use `--stdio` flag as fallback)
+- BBS FOSSIL mode not supported (use `--stdio` flag for FOSSIL-based BBSes)
 - Faction recruitment UI is still being refined
 - Some Town NPC stories may not trigger if the NPC hasn't spawned in your game
+- Steam achievements only sync when game is launched through Steam client
 
 ### How to Report Bugs
 1. Join Discord: https://discord.gg/EZhwgDT6Ta
@@ -486,4 +518,4 @@ Join our Discord server for discussions, feedback, and updates:
 
 ---
 
-**Status**: ALPHA v0.18 - NPC Relationships / Systems / Verbose Mode
+**Status**: ALPHA v0.19 - Steam Integration

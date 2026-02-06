@@ -669,8 +669,33 @@ public class StreetEncounterSystem
         terminal.WriteLine("");
 
         bool playerHasTeam = !string.IsNullOrEmpty(player.Team);
-        string[] gangNames = { "Shadow Blades", "Iron Fists", "Blood Ravens", "Night Wolves", "Storm Riders" };
-        string gangName = gangNames[_random.Next(gangNames.Length)];
+
+        // Get an actual existing team from the world (not a made-up name)
+        string gangName = "";
+        string gangPassword = "";
+        var activeTeams = WorldInitializerSystem.Instance.ActiveTeams;
+
+        // Find a team that exists and has members, preferring teams not full
+        var eligibleTeams = activeTeams?
+            .Where(t => t.MemberNames.Count < GameConfig.MaxTeamMembers && t.MemberNames.Count > 0)
+            .ToList();
+
+        if (eligibleTeams != null && eligibleTeams.Count > 0)
+        {
+            var selectedTeam = eligibleTeams[_random.Next(eligibleTeams.Count)];
+            gangName = selectedTeam.Name;
+
+            // Get the team password from an actual member
+            var npcs = NPCSpawnSystem.Instance.ActiveNPCs;
+            var teamMember = npcs?.FirstOrDefault(n => n.Team == gangName && !string.IsNullOrEmpty(n.TeamPW));
+            gangPassword = teamMember?.TeamPW ?? Guid.NewGuid().ToString().Substring(0, 8);
+        }
+        else
+        {
+            // No eligible teams - create a fallback gang name but don't allow joining
+            string[] fallbackNames = { "Shadow Blades", "Iron Fists", "Blood Ravens", "Night Wolves", "Storm Riders" };
+            gangName = fallbackNames[_random.Next(fallbackNames.Length)];
+        }
 
         terminal.SetColor("magenta");
         terminal.WriteLine($"  Members of the {gangName} block your path!");
@@ -723,18 +748,46 @@ public class StreetEncounterSystem
             terminal.WriteLine("  The gang looks you over...");
             await Task.Delay(1000);
 
-            if (player.Level >= 3)
+            // Check if this is an actual existing team with members
+            bool isRealTeam = eligibleTeams != null && eligibleTeams.Any(t => t.Name == gangName);
+
+            if (player.Level >= 3 && isRealTeam)
             {
                 terminal.SetColor("green");
                 terminal.WriteLine($"  \"Welcome to the {gangName}!\"");
+
+                // Properly join the team with password
                 player.Team = gangName;
+                player.TeamPW = gangPassword;
+                player.CTurf = false;
+                player.TeamRec = 0;
+
+                // Update the team record
+                var teamRecord = activeTeams?.FirstOrDefault(t => t.Name == gangName);
+                if (teamRecord != null && !teamRecord.MemberNames.Contains(player.Name2))
+                {
+                    teamRecord.MemberNames.Add(player.Name2);
+                }
+
                 result.Message = $"Joined the {gangName}!";
+
+                // Announce to news
+                NewsSystem.Instance?.WriteTeamNews("Gang Recruitment!",
+                    $"{GameConfig.NewsColorPlayer}{player.Name2}{GameConfig.NewsColorDefault} joined {GameConfig.NewsColorHighlight}{gangName}{GameConfig.NewsColorDefault}!");
             }
-            else
+            else if (player.Level < 3)
             {
                 terminal.SetColor("red");
                 terminal.WriteLine("  \"Come back when you're stronger, weakling!\"");
                 result.Message = "Too weak to join gang.";
+            }
+            else
+            {
+                // Team doesn't actually exist - decline the invitation
+                terminal.SetColor("yellow");
+                terminal.WriteLine("  The gang members exchange looks and back away...");
+                terminal.WriteLine("  \"Actually, we're not recruiting right now.\"");
+                result.Message = "Gang decided not to recruit.";
             }
         }
         else if (choice == "N" || choice == "L" || choice == "R")

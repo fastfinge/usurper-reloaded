@@ -122,6 +122,10 @@ public class SpellSystemTests
         var cleric = CreateTestCleric(10);
         cleric.HP = 50; // Wounded for healing test
 
+        // Set spell proficiency to Legendary (0% failure chance) for deterministic test
+        string skillId = TrainingSystem.GetSpellSkillId(CharacterClass.Cleric, 1);
+        TrainingSystem.SetSkillProficiency(cleric, skillId, TrainingSystem.ProficiencyLevel.Legendary);
+
         var result = SpellSystem.CastSpell(cleric, 1, null); // Cure Light on self
 
         result.Should().NotBeNull();
