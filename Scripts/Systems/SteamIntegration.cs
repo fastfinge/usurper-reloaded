@@ -237,9 +237,12 @@ public static class SteamIntegration
         {
             if (Steamworks.SteamUserStats.ResetAllStats(resetAchievements))
             {
+                // Force store the reset to Steam's servers immediately
+                Steamworks.SteamUserStats.StoreStats();
+
                 // Disable stat syncing until game restart to prevent re-triggering achievements
                 _syncDisabledUntilRestart = true;
-                DebugLogger.Instance?.LogWarning("STEAM", $"ALL STATS RESET! Achievements reset: {resetAchievements}. Stat syncing disabled until restart.");
+                DebugLogger.Instance?.LogWarning("STEAM", $"ALL STATS RESET! Achievements reset: {resetAchievements}. Stats stored. Syncing disabled until restart.");
                 return true;
             }
             else

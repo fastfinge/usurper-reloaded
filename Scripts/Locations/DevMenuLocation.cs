@@ -2203,11 +2203,18 @@ public class DevMenuLocation : BaseLocation
                 terminal.WriteLine("");
                 terminal.WriteLine("  All Steam stats and achievements have been reset!");
                 terminal.WriteLine("  Local achievements AND statistics cleared.");
-                terminal.WriteLine("  Stat syncing DISABLED until game restart (prevents re-triggering).");
+                terminal.WriteLine("  Stat syncing DISABLED until game restart.");
                 terminal.WriteLine("");
                 terminal.SetColor("bright_yellow");
-                terminal.WriteLine("  IMPORTANT: Quit the game now and restart to complete the reset!");
-                terminal.WriteLine("             Do NOT save - just exit to preserve the reset.");
+                terminal.WriteLine("  TO COMPLETE THE RESET:");
+                terminal.WriteLine("  1. SAVE your game now (to persist zeroed stats to save file)");
+                terminal.WriteLine("  2. Wait 5 seconds for Steam to sync the reset");
+                terminal.WriteLine("  3. Quit the game");
+                terminal.WriteLine("  4. Restart and load your save");
+                terminal.WriteLine("");
+                terminal.SetColor("gray");
+                terminal.WriteLine("  NOTE: If achievements still return, try disabling Steam Cloud");
+                terminal.WriteLine("        for this game in Steam settings while testing.");
             }
             else
             {
