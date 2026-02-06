@@ -1454,6 +1454,9 @@ public class MainStreetLocation : BaseLocation
         // Actually save the game before quitting!
         await GameEngine.Instance.SaveCurrentGame();
 
+        // Final Steam stats sync at session end
+        SteamIntegration.SyncCurrentPlayerStats();
+
         terminal.WriteLine("");
         terminal.SetColor("bright_green");
         terminal.WriteLine("  Thanks for playing Usurper Reborn!");

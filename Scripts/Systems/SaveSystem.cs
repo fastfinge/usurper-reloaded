@@ -92,6 +92,13 @@ namespace UsurperRemake.Systems
                 await File.WriteAllTextAsync(filePath, json);
 
                 DebugLogger.Instance.LogDebug("SAVE", $"Game saved successfully: {fileName}");
+
+                // Sync stats to Steam if available
+                if (player is Player playerChar && playerChar.Statistics != null)
+                {
+                    SteamIntegration.SyncPlayerStats(playerChar.Statistics);
+                }
+
                 return true;
             }
             catch (Exception ex)
