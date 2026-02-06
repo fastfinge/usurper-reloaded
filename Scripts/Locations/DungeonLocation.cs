@@ -4000,10 +4000,13 @@ public class DungeonLocation : BaseLocation
                 {
                     terminal.SetColor("bright_cyan");
                     terminal.WriteLine("A hidden passage opens before you!");
-                    
+
+                    // Track secret found for achievements
+                    player.Statistics.RecordSecretFound();
+
                     long bonusGold = currentDungeonLevel * 2000;
                     player.Gold += bonusGold;
-                    
+
                     terminal.WriteLine($"You discover {bonusGold} gold in the secret chamber!");
                 }
                 break;
@@ -4741,6 +4744,9 @@ public class DungeonLocation : BaseLocation
 
         if (choice.ToUpper() == "O")
         {
+            // Track chest opened for achievements
+            currentPlayer.Statistics.RecordChestOpened();
+
             // 70% good, 20% trap, 10% mimic
             var chestRoll = dungeonRandom.Next(10);
 
@@ -9119,6 +9125,10 @@ public class DungeonLocation : BaseLocation
             terminal.WriteLine("              HIDDEN CHAMBER");
             terminal.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
             terminal.WriteLine("");
+
+            // Track secret found for achievements (finding a hidden chamber counts as a secret)
+            player.Statistics.RecordSecretFound();
+
             terminal.SetColor("gray");
             terminal.WriteLine("You sense great power once resided here.");
             terminal.WriteLine("But whatever dwelt in this place... has moved on.");
@@ -9127,6 +9137,9 @@ public class DungeonLocation : BaseLocation
             await terminal.PressAnyKey();
             return;
         }
+
+        // Finding a secret boss chamber counts as discovering a secret
+        player.Statistics.RecordSecretFound();
 
         // Encounter the secret boss (displays intro and dialogue)
         var encounterResult = await bossMgr.EncounterBoss(bossType.Value, player, terminal);

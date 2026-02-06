@@ -2353,7 +2353,8 @@ public partial class CombatEngine
         result.CombatLog.Add($"Victory! Gained {expReward} exp and {goldReward} gold");
 
         // Check and award achievements based on combat result
-        bool tookDamage = result.Player.MaxHP > result.Player.HP;
+        // Use TotalDamageTaken from combat result to accurately track damage taken during THIS combat
+        bool tookDamage = result.TotalDamageTaken > 0;
         double hpPercent = (double)result.Player.HP / result.Player.MaxHP;
         AchievementSystem.CheckCombatAchievements(result.Player, tookDamage, hpPercent);
         AchievementSystem.CheckAchievements(result.Player);
@@ -6149,7 +6150,8 @@ public partial class CombatEngine
         await CheckForEquipmentDrop(result);
 
         // Check and award achievements after multi-monster combat
-        bool tookDamage = result.Player.MaxHP > result.Player.HP;
+        // Use TotalDamageTaken from combat result to accurately track damage taken during THIS combat
+        bool tookDamage = result.TotalDamageTaken > 0;
         double hpPercent = (double)result.Player.HP / result.Player.MaxHP;
         AchievementSystem.CheckCombatAchievements(result.Player, tookDamage, hpPercent);
         AchievementSystem.CheckAchievements(result.Player);
@@ -7465,6 +7467,109 @@ public partial class CombatEngine
             // Generate death news for the realm
             string location = result.Opponent?.CurrentLocation ?? "battle";
             NewsSystem.Instance?.WriteDeathNews(result.Opponent?.DisplayName ?? "Unknown", result.Player.DisplayName, location);
+
+            // === REWARD CALCULATION FOR KILLING NPCs ===
+            // Calculate XP based on opponent level
+            int opponentLevel = result.Opponent?.Level ?? 1;
+            int levelDiff = opponentLevel - result.Player.Level;
+
+            // Base XP: 50 * level, with level difference modifier
+            long baseXP = 50 * opponentLevel;
+            double levelMultiplier = 1.0 + (levelDiff * 0.15);
+            levelMultiplier = Math.Clamp(levelMultiplier, 0.25, 2.0);
+            long xpReward = (long)(baseXP * levelMultiplier);
+            xpReward = Math.Max(10, xpReward);
+
+            // Apply difficulty modifier
+            float xpMult = DifficultySystem.GetExperienceMultiplier(DifficultySystem.CurrentDifficulty);
+            xpReward = (long)(xpReward * xpMult);
+
+            // Calculate gold reward - take some of opponent's gold + level-based bonus
+            long opponentGold = result.Opponent?.Gold ?? 0;
+            long goldFromOpponent = (long)(opponentGold * 0.5); // Take half their gold
+            long bonusGold = random.Next(10, 30) * opponentLevel; // Level-based bonus
+            long goldReward = goldFromOpponent + bonusGold;
+
+            // Apply difficulty modifier
+            float goldMult = DifficultySystem.GetGoldMultiplier(DifficultySystem.CurrentDifficulty);
+            goldReward = (long)(goldReward * goldMult);
+
+            // Remove gold from opponent
+            if (result.Opponent != null)
+            {
+                result.Opponent.Gold = Math.Max(0, result.Opponent.Gold - goldFromOpponent);
+            }
+
+            // Apply rewards to player
+            result.Player.Experience += xpReward;
+            result.Player.Gold += goldReward;
+            result.ExperienceGained = xpReward;
+            result.GoldGained = goldReward;
+
+            // Track peak gold
+            result.Player.Statistics?.RecordGoldChange(result.Player.Gold);
+
+            // Display rewards
+            terminal.WriteLine("");
+            terminal.SetColor("yellow");
+            terminal.WriteLine($"Experience gained: {xpReward:N0}");
+            terminal.WriteLine($"Gold gained: {goldReward:N0}");
+
+            // === BONUS LOOT FROM NPC EQUIPMENT ===
+            // Chance to salvage value from opponent's equipment
+            long equipmentLootValue = 0;
+
+            if (result.Opponent != null)
+            {
+                // 30% chance to salvage weapon value
+                string opponentWeaponName = result.Opponent.WeaponName;
+                if (!string.IsNullOrEmpty(opponentWeaponName) &&
+                    opponentWeaponName != "Fist" &&
+                    opponentWeaponName != "None" &&
+                    random.Next(100) < 30)
+                {
+                    // Find weapon value and give a portion as loot
+                    var weapon = EquipmentDatabase.GetByName(opponentWeaponName);
+                    if (weapon != null)
+                    {
+                        long weaponValue = (long)(weapon.Value * 0.5); // 50% of item value
+                        equipmentLootValue += weaponValue;
+                        result.ItemsFound.Add($"{opponentWeaponName} (salvaged for {weaponValue:N0}g)");
+                    }
+                }
+
+                // 25% chance to salvage armor value
+                string opponentArmorName = result.Opponent.ArmorName;
+                if (!string.IsNullOrEmpty(opponentArmorName) &&
+                    opponentArmorName != "None" &&
+                    opponentArmorName != "Clothes" &&
+                    random.Next(100) < 25)
+                {
+                    // Find armor value and give a portion as loot
+                    var armor = EquipmentDatabase.GetByName(opponentArmorName);
+                    if (armor != null)
+                    {
+                        long armorValue = (long)(armor.Value * 0.5); // 50% of item value
+                        equipmentLootValue += armorValue;
+                        result.ItemsFound.Add($"{opponentArmorName} (salvaged for {armorValue:N0}g)");
+                    }
+                }
+            }
+
+            // Apply equipment loot value
+            if (equipmentLootValue > 0)
+            {
+                result.Player.Gold += equipmentLootValue;
+                result.GoldGained += equipmentLootValue;
+
+                terminal.SetColor("bright_cyan");
+                terminal.WriteLine("");
+                terminal.WriteLine("Equipment salvaged:");
+                foreach (var item in result.ItemsFound)
+                {
+                    terminal.WriteLine($"  • {item}");
+                }
+            }
         }
 
         await Task.Delay(GetCombatDelay(2000));

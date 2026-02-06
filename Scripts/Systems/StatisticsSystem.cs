@@ -420,6 +420,46 @@ public class PlayerStatistics
     }
 
     /// <summary>
+    /// Record a chest being opened
+    /// </summary>
+    public void RecordChestOpened()
+    {
+        TotalChestsOpened++;
+    }
+
+    /// <summary>
+    /// Record a secret being found
+    /// </summary>
+    public void RecordSecretFound()
+    {
+        TotalSecretsFound++;
+    }
+
+    /// <summary>
+    /// Record making a new friend (NPC reaching Friendship level)
+    /// </summary>
+    public void RecordFriendMade()
+    {
+        TotalFriendsGained++;
+    }
+
+    /// <summary>
+    /// Record a trap being triggered
+    /// </summary>
+    public void RecordTrapTriggered()
+    {
+        TotalTrapsTriggered++;
+    }
+
+    /// <summary>
+    /// Record a trap being disarmed
+    /// </summary>
+    public void RecordTrapDisarmed()
+    {
+        TotalTrapsDisarmed++;
+    }
+
+    /// <summary>
     /// Calculate combat win rate
     /// </summary>
     public double GetCombatWinRate()

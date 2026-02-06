@@ -74,7 +74,10 @@ public partial class RelationshipSystem
     public static void UpdateRelationship(Character character1, Character character2, int direction, int steps = 1, bool _unused = false, bool overrideMaxFeeling = false)
     {
         var relation = GetOrCreateRelationship(character1, character2);
-        
+
+        // Track old relation to detect new friendships
+        int oldRelation = relation.Relation1;
+
         for (int i = 0; i < steps; i++)
         {
             if (direction > 0) // Improve relationship
@@ -86,10 +89,18 @@ public partial class RelationshipSystem
                 relation.Relation1 = DecreaseRelation(relation.Relation1);
             }
         }
-        
+
+        // Track new friendship for achievements (when relation improves to Friendship level or better)
+        // Friendship level is 40 or lower (lower = better relationship)
+        if (oldRelation > GameConfig.RelationFriendship && relation.Relation1 <= GameConfig.RelationFriendship)
+        {
+            // A new friendship was formed - track for achievements
+            character1.Statistics?.RecordFriendMade();
+        }
+
         relation.LastUpdated = DateTime.Now;
         SaveRelationship(relation);
-        
+
         // Send relationship change notification
         SendRelationshipChangeNotification(character1, character2, relation.Relation1);
     }

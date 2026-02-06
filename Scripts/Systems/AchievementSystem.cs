@@ -793,6 +793,9 @@ public static class AchievementSystem
                 achievement.Category.ToString()
             );
 
+            // Sync with Steam if available
+            SteamIntegration.UnlockAchievement(achievementId);
+
             return true;
         }
 

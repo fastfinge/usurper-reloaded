@@ -1651,12 +1651,42 @@ public abstract class BaseLocation
             terminal.SetColor("bright_green");
             terminal.WriteLine($"You defeated {ambusher.Name}!");
 
+            // Mark NPC as permanently dead and queue for respawn
+            ambusher.IsDead = true;
+            ambusher.HP = 0;
+            WorldSimulator.Instance?.QueueNPCForRespawn(ambusher.Id);
+
+            // Display rewards summary (already calculated and given by combat engine)
+            terminal.WriteLine("");
+            if (result.ExperienceGained > 0 || result.GoldGained > 0)
+            {
+                terminal.SetColor("bright_yellow");
+                terminal.WriteLine("═══ REWARDS ═══");
+                terminal.SetColor("yellow");
+                if (result.ExperienceGained > 0)
+                    terminal.WriteLine($"  Experience: +{result.ExperienceGained:N0}");
+                if (result.GoldGained > 0)
+                    terminal.WriteLine($"  Gold: +{result.GoldGained:N0}");
+            }
+
+            // Display any looted items
+            if (result.ItemsFound != null && result.ItemsFound.Count > 0)
+            {
+                terminal.SetColor("bright_cyan");
+                terminal.WriteLine("  Loot:");
+                foreach (var item in result.ItemsFound)
+                {
+                    terminal.WriteLine($"    • {item}");
+                }
+            }
+
             // Killing faction NPCs affects standing
+            terminal.WriteLine("");
             if (ambusher.NPCFaction.HasValue)
             {
                 factionSystem.ModifyReputation(ambusher.NPCFaction.Value, -50);
-                terminal.SetColor("yellow");
-                terminal.WriteLine($"  Your standing with {UsurperRemake.Systems.FactionSystem.Factions[ambusher.NPCFaction.Value].Name} has decreased significantly!");
+                terminal.SetColor("red");
+                terminal.WriteLine($"  Your standing with {UsurperRemake.Systems.FactionSystem.Factions[ambusher.NPCFaction.Value].Name} has decreased! (-50)");
 
                 // Gain standing with rival factions
                 foreach (var faction in UsurperRemake.Systems.FactionSystem.Factions.Keys
@@ -1677,7 +1707,7 @@ public abstract class BaseLocation
 
             // Log the event
             UsurperRemake.Systems.DebugLogger.Instance.LogInfo("FACTION",
-                $"{currentPlayer.Name2} killed {ambusher.Name} ({ambusher.NPCFaction}) in faction ambush");
+                $"{currentPlayer.Name2} killed {ambusher.Name} ({ambusher.NPCFaction}) in faction ambush - XP:{result.ExperienceGained}, Gold:{result.GoldGained}");
         }
         else if (result.Outcome == CombatOutcome.PlayerEscaped)
         {

@@ -59,10 +59,21 @@ namespace UsurperConsole
             // Set up console close handlers
             SetupConsoleCloseHandlers();
 
+            // Initialize Steam integration (only works if launched through Steam)
+            SteamIntegration.Initialize();
+
             Console.WriteLine("Launching Usurper Reborn – Console Mode");
 
-            // Spin up the full engine in console mode.
-            await GameEngine.RunConsoleAsync();
+            try
+            {
+                // Spin up the full engine in console mode.
+                await GameEngine.RunConsoleAsync();
+            }
+            finally
+            {
+                // Shutdown Steam integration
+                SteamIntegration.Shutdown();
+            }
         }
 
         /// <summary>

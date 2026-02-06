@@ -78,6 +78,9 @@ namespace UsurperRemake.Locations
                 case "J": // The Shadows faction recruitment
                     await ShowShadowsRecruitment();
                     return false;
+                case "X": // Hidden easter egg - not shown in menu
+                    await ExamineTheShadows();
+                    return false;
                 case "Q":
                 case "R":
                     await NavigateToLocation(GameLocation.MainStreet);
@@ -826,6 +829,58 @@ namespace UsurperRemake.Locations
 
             // Log to debug
             DebugLogger.Instance.LogInfo("FACTION", $"{currentPlayer.Name2} joined The Shadows");
+        }
+
+        #endregion
+
+        #region Easter Egg
+
+        /// <summary>
+        /// Hidden easter egg discovery - triggered by pressing 'X' in the Dark Alley
+        /// </summary>
+        private async Task ExamineTheShadows()
+        {
+            terminal.ClearScreen();
+            terminal.SetColor("dark_magenta");
+            terminal.WriteLine("");
+            terminal.WriteLine("You squint into the deepest shadows of the alley...");
+            terminal.WriteLine("");
+            await Task.Delay(1500);
+
+            terminal.SetColor("gray");
+            terminal.WriteLine("At first, you see nothing but darkness.");
+            terminal.WriteLine("But as your eyes adjust, shapes begin to form...");
+            terminal.WriteLine("");
+            await Task.Delay(2000);
+
+            terminal.SetColor("white");
+            terminal.WriteLine("Letters. Ancient letters, carved into the very shadows themselves.");
+            terminal.WriteLine("They seem to shift and dance, but you can just make out the words:");
+            terminal.WriteLine("");
+            await Task.Delay(1500);
+
+            terminal.SetColor("bright_magenta");
+            terminal.WriteLine("   \"The Wave returns to the Ocean.\"");
+            terminal.WriteLine("   \"The Shadow remembers what the Light forgets.\"");
+            terminal.WriteLine("   \"Jakob was here. 1993.\"");
+            terminal.WriteLine("");
+            await Task.Delay(2000);
+
+            terminal.SetColor("bright_yellow");
+            terminal.WriteLine("You have discovered something hidden in this dark place!");
+            terminal.WriteLine("");
+
+            // Unlock the secret achievement
+            AchievementSystem.TryUnlock(currentPlayer, "easter_egg_1");
+            await AchievementSystem.ShowPendingNotifications(terminal);
+
+            terminal.SetColor("gray");
+            terminal.WriteLine("The shadows shift, and the words fade from view.");
+            terminal.WriteLine("But you know they are still there, waiting for another");
+            terminal.WriteLine("curious soul to find them in the darkness.");
+            terminal.WriteLine("");
+
+            await terminal.GetInputAsync("Press Enter to continue...");
         }
 
         #endregion

@@ -10,10 +10,25 @@
         <InvariantGlobalization>true</InvariantGlobalization>
     </PropertyGroup>
 
+    <!-- Steam build configuration - enables Steam integration -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Steam' Or '$(Configuration)' == 'SteamRelease'">
+        <DefineConstants>$(DefineConstants);STEAM_BUILD</DefineConstants>
+    </PropertyGroup>
+
     <ItemGroup>
         <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
         <PackageReference Include="System.IO.Ports" Version="10.0.2" />
+    </ItemGroup>
+
+    <!-- Steamworks.NET - only included in Steam builds -->
+    <ItemGroup Condition="'$(Configuration)' == 'Steam' Or '$(Configuration)' == 'SteamRelease'">
+        <PackageReference Include="Steamworks.NET" Version="20.1.0" />
+    </ItemGroup>
+
+    <!-- Copy steam_appid.txt to output for Steam builds (required for development testing) -->
+    <ItemGroup Condition="'$(Configuration)' == 'Steam' Or '$(Configuration)' == 'SteamRelease'">
+        <None Include="steam_appid.txt" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 
     <ItemGroup>
