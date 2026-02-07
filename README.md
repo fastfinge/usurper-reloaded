@@ -1,6 +1,6 @@
 # Usurper Reborn
 
-## ALPHA v0.25.1 - BBS Compatibility
+## ALPHA v0.25.2 - Boss System Fix
 
 **FREE AND OPEN SOURCE SOFTWARE - GPL v2 Licensed**
 
@@ -594,4 +594,4 @@ Join our Discord server for discussions, feedback, and updates:
 
 ---
 
-**Status**: ALPHA v0.25.1 - BBS Compatibility
+**Status**: ALPHA v0.25.2 - Boss System Fix

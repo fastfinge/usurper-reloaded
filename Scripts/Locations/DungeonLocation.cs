@@ -3092,25 +3092,42 @@ public class DungeonLocation : BaseLocation
                     room.SecretBossDefeated = roomState.SecretBossDefeated;
                 }
 
-                // CRITICAL: Boss rooms on Old God floors should NEVER be marked cleared
-                // unless the Old God was actually defeated/resolved. This prevents the bug
-                // where save corruption or non-deterministic generation marks boss cleared.
-                if (room.IsBossRoom && IsOldGodFloor(floorLevel))
+                // CRITICAL: Boss rooms should NEVER be marked cleared unless the actual boss
+                // was defeated. This prevents bugs where save corruption, non-deterministic
+                // generation, or defeating non-boss-room monsters with IsBoss=true incorrectly
+                // marks the boss room as cleared.
+                if (room.IsBossRoom)
                 {
-                    var godType = GetOldGodForFloor(floorLevel);
-                    if (godType != null)
+                    if (IsOldGodFloor(floorLevel))
                     {
-                        var story = StoryProgressionSystem.Instance;
-                        bool godResolved = story.OldGodStates.TryGetValue(godType.Value, out var state) &&
-                            (state.Status == GodStatus.Defeated ||
-                             state.Status == GodStatus.Saved ||
-                             state.Status == GodStatus.Allied ||
-                             state.Status == GodStatus.Awakened ||
-                             state.Status == GodStatus.Consumed);
-
-                        if (!godResolved)
+                        // Old God floors: Check if the god was actually resolved
+                        var godType = GetOldGodForFloor(floorLevel);
+                        if (godType != null)
                         {
-                            // Force boss room to be uncleared if Old God wasn't resolved
+                            var story = StoryProgressionSystem.Instance;
+                            bool godResolved = story.OldGodStates.TryGetValue(godType.Value, out var state) &&
+                                (state.Status == GodStatus.Defeated ||
+                                 state.Status == GodStatus.Saved ||
+                                 state.Status == GodStatus.Allied ||
+                                 state.Status == GodStatus.Awakened ||
+                                 state.Status == GodStatus.Consumed);
+
+                            if (!godResolved)
+                            {
+                                // Force boss room to be uncleared if Old God wasn't resolved
+                                room.IsCleared = false;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Non-Old-God floors: Boss room should only be cleared if the floor
+                        // was ever fully cleared (which requires defeating the actual boss room)
+                        // This prevents mini-bosses or other IsBoss monsters from incorrectly
+                        // invalidating the floor boss fight
+                        if (!savedState.EverCleared)
+                        {
+                            // Floor was never fully cleared, so boss room shouldn't be cleared either
                             room.IsCleared = false;
                         }
                     }
@@ -4351,7 +4368,7 @@ public class DungeonLocation : BaseLocation
                     true, false, currentDungeonLevel * 6, currentDungeonLevel * 4, currentDungeonLevel * 3
                 );
                 guardian.Level = currentDungeonLevel + 5;
-                guardian.IsBoss = true;
+                guardian.IsMiniBoss = true;  // Portal guardians are elite encounters, not floor bosses
 
                 var combatEngine = new CombatEngine(terminal);
                 var result = await combatEngine.PlayerVsMonster(currentPlayer, guardian, teammates);
@@ -4845,7 +4862,7 @@ public class DungeonLocation : BaseLocation
                     "Fooled you!", false, false, "Teeth", "Wooden Shell",
                     false, false, currentDungeonLevel * 5, currentDungeonLevel * 3, currentDungeonLevel * 3
                 );
-                mimic.IsBoss = true;
+                mimic.IsMiniBoss = true;  // Mimics are elite encounters, not floor bosses
                 mimic.Level = currentDungeonLevel;
 
                 var combatEngine = new CombatEngine(terminal);
@@ -4940,7 +4957,7 @@ public class DungeonLocation : BaseLocation
                     false, false, currentDungeonLevel * 2, currentDungeonLevel, currentDungeonLevel * 2
                 );
                 monster.Level = currentDungeonLevel;
-                if (i == 0) monster.IsBoss = true;
+                if (i == 0) monster.IsMiniBoss = true;  // Group leaders are elites, not floor bosses
                 monsters.Add(monster);
             }
 
@@ -5270,7 +5287,7 @@ public class DungeonLocation : BaseLocation
                     "You will pay for your sacrilege!", false, false, "Spectral Claws", "Ethereal Form",
                     false, false, currentDungeonLevel * 4, currentDungeonLevel * 3, currentDungeonLevel * 3
                 );
-                spirit.IsBoss = true;
+                spirit.IsMiniBoss = true;  // Vengeful spirits are elite encounters, not floor bosses
 
                 var combatEngine = new CombatEngine(terminal);
                 var combatResult = await combatEngine.PlayerVsMonster(currentPlayer, spirit, teammates);
@@ -6454,7 +6471,7 @@ public class DungeonLocation : BaseLocation
         
         if (isLeader)
         {
-            monster.IsBoss = true;
+            monster.IsMiniBoss = true;  // Terrain encounter leaders are elites, not floor bosses
         }
         
         // Store level for other systems (initiative scaling etc.)

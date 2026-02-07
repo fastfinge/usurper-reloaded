@@ -218,23 +218,23 @@ public class Monster
         // Set dungeon level appearance
         DungeonLevel = Math.Max(1, (monsterType / 3) + GD.RandRange(-1, 2));
         
-        // Check for boss status based on name (for legacy monsters)
+        // Check for elite status based on name (for legacy monsters)
         // Note: MonsterGenerator sets IsBoss directly and applies boss multipliers in CalculateMonsterStats
-        // The monsterType parameter is actually dungeon level when called from MonsterGenerator,
-        // so we should NOT use it to determine boss status
+        // Only actual floor bosses in boss rooms should have IsBoss = true
+        // Champions, elites, and mini-bosses use IsMiniBoss instead
         if (Name.ToLower().Contains("boss") || Name.ToLower().Contains("lord"))
         {
-            IsBoss = true;
-            HP = (long)(HP * 1.5f);  // Bosses get more HP
+            IsMiniBoss = true;  // These are elite encounters, not actual floor bosses
+            HP = (long)(HP * 1.5f);  // Elites get more HP
             MaxHP = HP;  // Update MaxHP to match boosted HP
             Strength = (long)(Strength * 1.2f);
         }
-        
-        // Check for unique status
+
+        // Check for unique status (uniques are special but still not floor bosses)
         if (Name.ToLower().Contains("death knight") || Name.ToLower().Contains("supreme"))
         {
             IsUnique = true;
-            IsBoss = true;
+            IsMiniBoss = true;  // Uniques are elite encounters, not floor bosses
         }
         
         // Reduce the raw punch/extra damage for the weakest ranks so they hit lighter
@@ -286,7 +286,11 @@ public class Monster
         {
             attack = (long)(attack * 1.3f);
         }
-        
+        else if (IsMiniBoss)
+        {
+            attack = (long)(attack * 1.15f);  // Mini-bosses get 15% attack bonus
+        }
+
         // Add poison damage if poisoned
         if (Poisoned)
         {
@@ -308,7 +312,11 @@ public class Monster
         {
             defense = (long)(defense * 1.2f);
         }
-        
+        else if (IsMiniBoss)
+        {
+            defense = (long)(defense * 1.1f);  // Mini-bosses get 10% defense bonus
+        }
+
         return Math.Max(0, defense);
     }
     
@@ -490,7 +498,11 @@ public class Monster
 
         if (IsBoss)
         {
-            baseExp *= 3;
+            baseExp *= 3;  // Floor bosses give 3x XP
+        }
+        else if (IsMiniBoss)
+        {
+            baseExp = (long)(baseExp * 1.5);  // Mini-bosses give 1.5x XP
         }
 
         if (IsUnique)
@@ -520,7 +532,11 @@ public class Monster
 
         if (IsBoss)
         {
-            baseGold *= 3; // Boss = 3x gold
+            baseGold *= 3;  // Floor bosses give 3x gold
+        }
+        else if (IsMiniBoss)
+        {
+            baseGold = (long)(baseGold * 1.5);  // Mini-bosses give 1.5x gold
         }
 
         if (IsUnique)
