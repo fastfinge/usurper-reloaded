@@ -760,7 +760,8 @@ public class Equipment
             WeaponType = weaponType,
             WeaponPower = power,
             Value = value,
-            Rarity = rarity
+            Rarity = rarity,
+            MinLevel = GetMinLevelForRarity(rarity)
         };
     }
 
@@ -780,7 +781,8 @@ public class Equipment
             ShieldBonus = shieldBonus,
             BlockChance = blockChance,
             Value = value,
-            Rarity = rarity
+            Rarity = rarity,
+            MinLevel = GetMinLevelForRarity(rarity)
         };
     }
 
@@ -798,7 +800,8 @@ public class Equipment
             ArmorType = armorType,
             ArmorClass = ac,
             Value = value,
-            Rarity = rarity
+            Rarity = rarity,
+            MinLevel = GetMinLevelForRarity(rarity)
         };
     }
 
@@ -814,7 +817,22 @@ public class Equipment
             Name = name,
             Slot = slot,
             Value = value,
-            Rarity = rarity
+            Rarity = rarity,
+            MinLevel = GetMinLevelForRarity(rarity)
+        };
+    }
+
+    /// <summary>
+    /// Get minimum level requirement based on equipment rarity.
+    /// Epic items require level 45, Legendary items require level 65.
+    /// </summary>
+    private static int GetMinLevelForRarity(EquipmentRarity rarity)
+    {
+        return rarity switch
+        {
+            EquipmentRarity.Epic => 45,
+            EquipmentRarity.Legendary => 65,
+            _ => 1  // Common, Uncommon, Rare have no level requirement
         };
     }
 

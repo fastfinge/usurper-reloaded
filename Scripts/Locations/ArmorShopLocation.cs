@@ -18,7 +18,7 @@ public class ArmorShopLocation : BaseLocation
     private int currentPage = 0;
     private const int ItemsPerPage = 15;
 
-    // Armor slots sold in this shop
+    // Armor slots sold in this shop (includes accessories like rings and necklaces)
     private static readonly EquipmentSlot[] ArmorSlots = new[]
     {
         EquipmentSlot.Head,
@@ -29,7 +29,10 @@ public class ArmorShopLocation : BaseLocation
         EquipmentSlot.Feet,
         EquipmentSlot.Waist,
         EquipmentSlot.Face,
-        EquipmentSlot.Cloak
+        EquipmentSlot.Cloak,
+        EquipmentSlot.Neck,
+        EquipmentSlot.LFinger,
+        EquipmentSlot.RFinger
     };
 
     public ArmorShopLocation() : base(
@@ -551,6 +554,9 @@ public class ArmorShopLocation : BaseLocation
                 "armor", "buy", item.Name, adjustedPrice,
                 currentPlayer.Level, currentPlayer.Gold
             );
+
+            // Check for equipment quest completion
+            QuestSystem.OnEquipmentPurchased(currentPlayer, item);
         }
         else
         {
@@ -831,6 +837,9 @@ public class ArmorShopLocation : BaseLocation
                             purchased++;
                             terminal.SetColor("bright_green");
                             terminal.WriteLine($"  ✓ Purchased {armor.Name}!");
+
+                            // Check for equipment quest completion
+                            QuestSystem.OnEquipmentPurchased(currentPlayer, armor);
                         }
                         slotHandled = true;
                         break;

@@ -10,8 +10,8 @@ using System.Collections.Generic;
 public static partial class GameConfig
 {
     // Version information
-    public const string Version = "0.22.4-alpha";
-    public const string VersionName = "Achievement Reset Fix";
+    public const string Version = "0.25.0-alpha";
+    public const string VersionName = "Quest System Overhaul";
 
     // From Pascal global_maxXX constants
     public const int MaxPlayers = 400;           // global_maxplayers
@@ -299,6 +299,9 @@ public static partial class GameConfig
     public const long DivorceCost = 2000;              // Cost for divorce/annulment
     public const int MaxMarriageAttempts = 3;          // Daily marriage attempts
     public const int MinAgeForMarriage = 18;           // Minimum age to marry
+    public const int MinDaysBeforeMarriage = 7;        // Minimum days of relationship before marriage (v0.26)
+    public const int BaseProposalAcceptance = 50;      // Base 50% chance NPC accepts proposal (v0.26)
+    public const int MaxDailyRelationshipGain = 2;     // Max relationship steps per day per NPC (v0.26)
     
     // Divine Services
     public const long BlessingCost = 500;              // Cost for divine blessing
@@ -594,7 +597,7 @@ public static partial class GameConfig
         [CharacterClass.Magician] = new() { HP = 2, Strength = 1, Defence = 1, Stamina = 1, Agility = 2, Charisma = 5, Dexterity = 2, Wisdom = 4, Intelligence = 5, Constitution = 1, Mana = 40, MaxMana = 40 },
         [CharacterClass.Paladin] = new() { HP = 4, Strength = 4, Defence = 3, Stamina = 4, Agility = 2, Charisma = 2, Dexterity = 3, Wisdom = 3, Intelligence = 2, Constitution = 4, Mana = 0, MaxMana = 0 },
         [CharacterClass.Ranger] = new() { HP = 3, Strength = 3, Defence = 3, Stamina = 4, Agility = 3, Charisma = 2, Dexterity = 4, Wisdom = 3, Intelligence = 2, Constitution = 3, Mana = 0, MaxMana = 0 },
-        [CharacterClass.Sage] = new() { HP = 1, Strength = 1, Defence = 2, Stamina = 2, Agility = 2, Charisma = 3, Dexterity = 3, Wisdom = 5, Intelligence = 5, Constitution = 1, Mana = 40, MaxMana = 40 },
+        [CharacterClass.Sage] = new() { HP = 2, Strength = 2, Defence = 2, Stamina = 2, Agility = 2, Charisma = 3, Dexterity = 3, Wisdom = 5, Intelligence = 5, Constitution = 2, Mana = 50, MaxMana = 50 },
         [CharacterClass.Warrior] = new() { HP = 4, Strength = 4, Defence = 4, Stamina = 4, Agility = 3, Charisma = 2, Dexterity = 2, Wisdom = 2, Intelligence = 2, Constitution = 4, Mana = 0, MaxMana = 0 }
     };
 
@@ -606,11 +609,11 @@ public static partial class GameConfig
         [CharacterRace.Elf] = new() { HPBonus = 11, StrengthBonus = 3, DefenceBonus = 2, StaminaBonus = 3, MinAge = 20, MaxAge = 34, MinHeight = 160, MaxHeight = 184, MinWeight = 60, MaxWeight = 89, SkinColor = 10, HairColors = new[] { 1, 4, 5, 8 } },
         [CharacterRace.HalfElf] = new() { HPBonus = 13, StrengthBonus = 2, DefenceBonus = 3, StaminaBonus = 4, MinAge = 18, MaxAge = 25, MinHeight = 165, MaxHeight = 189, MinWeight = 70, MaxWeight = 94, SkinColor = 10, HairColors = new[] { 1, 4, 5, 8 } },
         [CharacterRace.Dwarf] = new() { HPBonus = 17, StrengthBonus = 5, DefenceBonus = 5, StaminaBonus = 4, MinAge = 25, MaxAge = 39, MinHeight = 160, MaxHeight = 179, MinWeight = 70, MaxWeight = 89, SkinColor = 7, HairColors = new[] { 1, 4, 5, 8 } },
-        [CharacterRace.Troll] = new() { HPBonus = 20, StrengthBonus = 7, DefenceBonus = 7, StaminaBonus = 5, MinAge = 18, MaxAge = 29, MinHeight = 185, MaxHeight = 219, MinWeight = 85, MaxWeight = 114, SkinColor = 5, HairColors = new[] { 5, 4, 4, 5 } },
+        [CharacterRace.Troll] = new() { HPBonus = 16, StrengthBonus = 5, DefenceBonus = 5, StaminaBonus = 4, MinAge = 18, MaxAge = 29, MinHeight = 185, MaxHeight = 219, MinWeight = 85, MaxWeight = 114, SkinColor = 5, HairColors = new[] { 5, 4, 4, 5 } },
         [CharacterRace.Orc] = new() { HPBonus = 14, StrengthBonus = 3, DefenceBonus = 4, StaminaBonus = 3, MinAge = 18, MaxAge = 24, MinHeight = 170, MaxHeight = 189, MinWeight = 70, MaxWeight = 89, SkinColor = 5, HairColors = new[] { 5, 4, 4, 5 } },
         [CharacterRace.Gnome] = new() { HPBonus = 12, StrengthBonus = 2, DefenceBonus = 3, StaminaBonus = 3, MinAge = 18, MaxAge = 29, MinHeight = 160, MaxHeight = 189, MinWeight = 60, MaxWeight = 74, SkinColor = 3, HairColors = new[] { 3, 3, 4, 9 } },
-        [CharacterRace.Gnoll] = new() { HPBonus = 9, StrengthBonus = 2, DefenceBonus = 2, StaminaBonus = 2, MinAge = 18, MaxAge = 27, MinHeight = 140, MaxHeight = 154, MinWeight = 50, MaxWeight = 64, SkinColor = 4, HairColors = new[] { 3, 3, 4, 9 } },
-        [CharacterRace.Mutant] = new() { HPBonus = 10, StrengthBonus = 1, DefenceBonus = 1, StaminaBonus = 1, MinAge = 18, MaxAge = 32, MinHeight = 150, MaxHeight = 199, MinWeight = 50, MaxWeight = 99, SkinColor = 0, HairColors = new int[0] }  // Random for mutants
+        [CharacterRace.Gnoll] = new() { HPBonus = 13, StrengthBonus = 4, DefenceBonus = 3, StaminaBonus = 3, MinAge = 18, MaxAge = 27, MinHeight = 140, MaxHeight = 154, MinWeight = 50, MaxWeight = 64, SkinColor = 4, HairColors = new[] { 3, 3, 4, 9 } },
+        [CharacterRace.Mutant] = new() { HPBonus = 14, StrengthBonus = 3, DefenceBonus = 3, StaminaBonus = 3, MinAge = 18, MaxAge = 32, MinHeight = 150, MaxHeight = 199, MinWeight = 50, MaxWeight = 99, SkinColor = 0, HairColors = new int[0] }  // Random for mutants - adaptive bonus
     };
 
     // Race and Class Names (Pascal constants)

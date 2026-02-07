@@ -100,6 +100,10 @@ public partial class Quest
             QuestTarget.ClearFloor => "Dungeon Sweep",
             QuestTarget.RescueNPC => "Rescue Mission",
             QuestTarget.SurviveDungeon => "Survival Challenge",
+            QuestTarget.BuyWeapon => "Weapon Procurement",
+            QuestTarget.BuyArmor => "Armor Procurement",
+            QuestTarget.BuyAccessory => "Accessory Procurement",
+            QuestTarget.BuyShield => "Shield Procurement",
             _ => "Unknown Mission"
         };
     }
@@ -305,7 +309,13 @@ public enum QuestTarget
     SurviveDungeon = 15,        // Survive X floors without returning to town
 
     // NPC-related quest types
-    DefeatNPC = 20              // Defeat a specific NPC (bounty system)
+    DefeatNPC = 20,             // Defeat a specific NPC (bounty system)
+
+    // Equipment purchase quests
+    BuyWeapon = 30,             // Purchase a specific weapon from shops
+    BuyArmor = 31,              // Purchase a specific armor piece from shops
+    BuyAccessory = 32,          // Purchase a specific accessory (ring, amulet) from shops
+    BuyShield = 33              // Purchase a specific shield from shops
 }
 
 /// <summary>
@@ -366,7 +376,10 @@ public enum QuestObjectiveType
 
     // Exploration objectives
     VisitLocation = 40,         // Visit a specific location
-    SurviveDays = 41            // Survive X days with quest active
+    SurviveDays = 41,           // Survive X days with quest active
+
+    // Equipment purchase objectives
+    PurchaseEquipment = 50      // Purchase a specific piece of equipment
 }
 
 /// <summary>

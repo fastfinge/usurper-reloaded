@@ -44,11 +44,11 @@ public static class StatEffectsSystem
 
     /// <summary>
     /// Critical hit chance from Dexterity
-    /// Base 5% + (Dexterity / 10)% (so 20 DEX = 7% crit)
+    /// Base 5% + (Dexterity / 10)%, clamped to 5-50% to prevent overflow exploit
     /// </summary>
     public static int GetCriticalHitChance(long dexterity)
     {
-        return 5 + (int)(dexterity / 10);
+        return Math.Clamp(5 + (int)(dexterity / 10), 5, 50);
     }
 
     /// <summary>

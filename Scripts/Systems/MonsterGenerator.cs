@@ -13,7 +13,7 @@ public static class MonsterGenerator
     /// Generate a monster for a specific dungeon level
     /// Uses monster families and balanced stat scaling
     /// </summary>
-    public static Monster GenerateMonster(int dungeonLevel, bool isBoss = false, Random? random = null)
+    public static Monster GenerateMonster(int dungeonLevel, bool isBoss = false, bool isMiniBoss = false, Random? random = null)
     {
         random ??= new Random();
 
@@ -24,16 +24,23 @@ public static class MonsterGenerator
         var (family, tier) = MonsterFamilies.GetMonsterForLevel(dungeonLevel, random);
 
         // Calculate base stats using smooth scaling formulas
-        var stats = CalculateMonsterStats(dungeonLevel, tier.PowerMultiplier, isBoss);
+        var stats = CalculateMonsterStats(dungeonLevel, tier.PowerMultiplier, isBoss, isMiniBoss);
+
+        // Generate monster name - mini-bosses get "Champion" suffix
+        string monsterName = tier.Name;
+        if (isMiniBoss && !isBoss)
+        {
+            monsterName = GetChampionName(tier.Name, family.FamilyName);
+        }
 
         // Create the monster
         var monster = Monster.CreateMonster(
             nr: dungeonLevel,
-            name: tier.Name,
+            name: monsterName,
             hps: stats.HP,
             strength: stats.Strength,
             defence: stats.Defence,
-            phrase: GetMonsterPhrase(family, tier),
+            phrase: isMiniBoss ? GetChampionPhrase(family) : GetMonsterPhrase(family, tier),
             grabweap: random.NextDouble() < 0.15, // 15% chance to disarm
             grabarm: false,
             weapon: GetWeapon(dungeonLevel, random),
@@ -48,10 +55,11 @@ public static class MonsterGenerator
         // Store family and tier info for combat messages
         monster.FamilyName = family.FamilyName;
         monster.TierName = tier.Name;
-        monster.MonsterColor = tier.Color;
+        monster.MonsterColor = isMiniBoss ? "bright_yellow" : tier.Color;
         monster.AttackType = family.AttackType;
         monster.Level = dungeonLevel;
         monster.IsBoss = isBoss;
+        monster.IsMiniBoss = isMiniBoss;
 
         // Add special abilities
         foreach (var ability in tier.SpecialAbilities)
@@ -60,6 +68,70 @@ public static class MonsterGenerator
         }
 
         return monster;
+    }
+
+    /// <summary>
+    /// Get a champion name for a mini-boss based on the base monster name
+    /// </summary>
+    private static string GetChampionName(string baseName, string familyName)
+    {
+        // Check if the name already has a rank suffix
+        string[] existingRanks = { "King", "Lord", "Chieftain", "Warlord", "Champion", "Berserker", "Elder" };
+        foreach (var rank in existingRanks)
+        {
+            if (baseName.Contains(rank))
+            {
+                // Already has a rank, use "Alpha" prefix instead
+                return $"Alpha {baseName}";
+            }
+        }
+
+        // Add appropriate champion suffix based on family
+        return familyName switch
+        {
+            "Goblinoid" => $"{baseName} Champion",
+            "Undead" => $"{baseName} Revenant",
+            "Orcish" => $"{baseName} Warchief",
+            "Draconic" => $"Elder {baseName}",
+            "Demonic" => $"{baseName} Overlord",
+            "Giant" => $"{baseName} Titan",
+            "Beast" => $"Alpha {baseName}",
+            "Elemental" => $"Prime {baseName}",
+            "Aberration" => $"{baseName} Abomination",
+            "Insectoid" => $"{baseName} Hive Lord",
+            "Construct" => $"{baseName} Prime",
+            "Fey" => $"{baseName} Archfey",
+            "Aquatic" => $"{baseName} Leviathan",
+            "Celestial" => $"{baseName} Seraph",
+            "Shadow" => $"{baseName} Nightlord",
+            _ => $"{baseName} Champion"
+        };
+    }
+
+    /// <summary>
+    /// Get a special phrase for champion/mini-boss monsters
+    /// </summary>
+    private static string GetChampionPhrase(MonsterFamilies.MonsterFamily family)
+    {
+        return family.FamilyName switch
+        {
+            "Goblinoid" => "You dare challenge me? I am the strongest of my tribe!",
+            "Undead" => "Your soul shall join my legion of the damned...",
+            "Orcish" => "BLOOD AND GLORY! I will mount your skull on my pike!",
+            "Draconic" => "Foolish mortal! You face the might of dragonkind!",
+            "Demonic" => "Your pathetic soul is MINE!",
+            "Giant" => "I'll grind your bones to make my bread!",
+            "Beast" => "*Roars with primal fury*",
+            "Elemental" => "Feel the wrath of the elements unleashed!",
+            "Aberration" => "*Reality warps and screams around the creature*",
+            "Insectoid" => "*Chittering echoes through your mind*",
+            "Construct" => "*Mechanical grinding intensifies* TARGET ACQUIRED.",
+            "Fey" => "You've wandered into my domain, little mortal...",
+            "Aquatic" => "*The creature's roar creates a shockwave*",
+            "Celestial" => "You have been judged UNWORTHY!",
+            "Shadow" => "Darkness shall consume all...",
+            _ => "You face a champion! Prepare yourself!"
+        };
     }
 
     /// <summary>
@@ -85,10 +157,11 @@ public static class MonsterGenerator
     /// - Level 50 player (Str 100, Weap 100) deals ~400 damage -> Monster HP ~1200-2000
     /// - Level 100 player (Str 200, Weap 200) deals ~800 damage -> Monster HP ~2500-4000
     /// </summary>
-    private static MonsterStats CalculateMonsterStats(int level, float powerMultiplier, bool isBoss)
+    private static MonsterStats CalculateMonsterStats(int level, float powerMultiplier, bool isBoss, bool isMiniBoss = false)
     {
-        // Reduced boss multiplier to 1.5 (was 1.8)
-        float bossMultiplier = isBoss ? 1.5f : 1.0f;
+        // Boss multiplier for increased difficulty (2.0x HP/stats)
+        // Mini-boss multiplier for moderate difficulty (1.5x HP/stats)
+        float bossMultiplier = isBoss ? 2.0f : (isMiniBoss ? 1.5f : 1.0f);
         float totalMultiplier = powerMultiplier * bossMultiplier;
 
         // REBALANCED HP: Nearly linear scaling
@@ -288,10 +361,11 @@ public static class MonsterGenerator
         // Clamp dungeon level to valid range (1-100)
         dungeonLevel = Math.Max(1, Math.Min(100, dungeonLevel));
 
-        // 10% chance for boss encounter (single powerful monster)
+        // 10% chance for mini-boss/champion encounter (single powerful monster)
+        // These are named champions that always drop equipment loot
         if (random.NextDouble() < 0.10)
         {
-            monsters.Add(GenerateMonster(dungeonLevel, isBoss: true, random));
+            monsters.Add(GenerateMonster(dungeonLevel, isBoss: false, isMiniBoss: true, random: random));
             return monsters;
         }
 
@@ -354,7 +428,7 @@ public static class MonsterGenerator
             // Mixed family encounter
             for (int i = 0; i < groupSize; i++)
             {
-                monsters.Add(GenerateMonster(dungeonLevel, false, random));
+                monsters.Add(GenerateMonster(dungeonLevel, isBoss: false, isMiniBoss: false, random: random));
             }
         }
 

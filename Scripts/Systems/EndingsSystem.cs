@@ -174,8 +174,14 @@ namespace UsurperRemake.Systems
             if (ocean?.CollectedFragments == null || ocean.CollectedFragments.Count < 7)
                 return false;
 
-            // Must have story flag for being ready
-            return story?.HasStoryFlag("ready_for_dissolution") == true;
+            // Auto-set the ready_for_dissolution flag when all conditions are met
+            // This ensures the ending is reachable once the player has completed the journey
+            if (!story.HasStoryFlag("ready_for_dissolution"))
+            {
+                story.SetStoryFlag("ready_for_dissolution", true);
+            }
+
+            return true;
         }
 
         /// <summary>

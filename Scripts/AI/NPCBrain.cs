@@ -877,9 +877,99 @@ public class NPCBrain
                 _ => "Stay away from me!"
             };
         }
-        
+
         return "Hello there.";
     }
+
+    /// <summary>
+    /// Get speech modifiers based on dominant personality traits
+    /// Used by NPCDialogueGenerator for personality-driven dialogue
+    /// </summary>
+    public SpeechModifiers GetSpeechModifiers()
+    {
+        var modifiers = new SpeechModifiers();
+
+        if (personality == null) return modifiers;
+
+        // Determine dominant traits that affect speech
+        if (personality.Aggression > 0.7f)
+        {
+            modifiers.Tone = "aggressive";
+            modifiers.SentenceLength = "short";
+            modifiers.Vocabulary = "threatening";
+        }
+        else if (personality.Aggression < 0.3f)
+        {
+            modifiers.Tone = "gentle";
+            modifiers.SentenceLength = "normal";
+            modifiers.Vocabulary = "polite";
+        }
+
+        if (personality.Intelligence > 0.7f)
+        {
+            modifiers.Vocabulary = "complex";
+            modifiers.UsesPhilosophy = true;
+        }
+        else if (personality.Intelligence < 0.3f)
+        {
+            modifiers.Vocabulary = "simple";
+            modifiers.SentenceLength = "short";
+        }
+
+        if (personality.Greed > 0.7f)
+        {
+            modifiers.MentionsMoney = true;
+        }
+
+        if (personality.Romanticism > 0.7f)
+        {
+            modifiers.Vocabulary = "flowery";
+            modifiers.UsesCompliments = true;
+        }
+
+        if (personality.Sociability > 0.7f)
+        {
+            modifiers.Tone = "friendly";
+            modifiers.UsesHumor = true;
+        }
+
+        if (personality.Loyalty > 0.7f)
+        {
+            modifiers.MentionsHonor = true;
+        }
+
+        if (personality.Courage > 0.7f)
+        {
+            modifiers.Tone = "confident";
+        }
+        else if (personality.Courage < 0.3f)
+        {
+            modifiers.Tone = "cautious";
+        }
+
+        if (personality.Trustworthiness < 0.3f)
+        {
+            modifiers.UsesDeflection = true;
+        }
+
+        return modifiers;
+    }
+}
+
+/// <summary>
+/// Container for speech modification parameters based on personality
+/// </summary>
+public class SpeechModifiers
+{
+    public string Tone { get; set; } = "neutral";
+    public string SentenceLength { get; set; } = "normal";
+    public string Vocabulary { get; set; } = "normal";
+    public bool MentionsMoney { get; set; } = false;
+    public bool UsesCompliments { get; set; } = false;
+    public bool UsesHumor { get; set; } = false;
+    public bool MentionsHonor { get; set; } = false;
+    public bool UsesPhilosophy { get; set; } = false;
+    public bool UsesDeflection { get; set; } = false;
 }
 
 // Supporting classes and enums

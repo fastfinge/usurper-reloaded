@@ -395,6 +395,57 @@ public static class LootGenerator
 
         #endregion
 
+        #region Accessory Templates
+
+        private static readonly List<(string Name, int MinLevel, int MaxLevel, float BasePower)> RingTemplates = new()
+        {
+            // Basic rings
+            ("Copper Ring", 1, 20, 3),
+            ("Silver Ring", 5, 35, 6),
+            ("Gold Ring", 15, 50, 10),
+            ("Platinum Ring", 30, 70, 16),
+            ("Mithril Ring", 50, 90, 25),
+            ("Adamantine Ring", 75, 100, 40),
+
+            // Themed rings
+            ("Ring of Strength", 10, 60, 12),
+            ("Ring of Protection", 10, 60, 12),
+            ("Ring of Wisdom", 15, 70, 15),
+            ("Ring of Power", 25, 80, 20),
+            ("Ring of Vitality", 20, 75, 18),
+            ("Ring of the Mage", 30, 85, 22),
+            ("Signet Ring", 40, 90, 28),
+            ("Band of Heroes", 55, 100, 35),
+            ("Dragon's Eye Ring", 70, 100, 45),
+            ("Archmage's Sigil", 85, 100, 55),
+        };
+
+        private static readonly List<(string Name, int MinLevel, int MaxLevel, float BasePower)> NecklaceTemplates = new()
+        {
+            // Basic necklaces
+            ("Leather Cord", 1, 15, 2),
+            ("Bone Necklace", 1, 25, 4),
+            ("Silver Chain", 10, 40, 8),
+            ("Gold Chain", 20, 55, 12),
+            ("Jeweled Pendant", 30, 70, 18),
+            ("Platinum Amulet", 45, 85, 26),
+            ("Mithril Torc", 60, 100, 35),
+            ("Adamantine Collar", 80, 100, 48),
+
+            // Themed necklaces
+            ("Amulet of Health", 15, 65, 14),
+            ("Amulet of Warding", 20, 70, 16),
+            ("Pendant of Might", 25, 75, 20),
+            ("Talisman of Luck", 30, 80, 24),
+            ("Medallion of Valor", 40, 85, 30),
+            ("Necklace of Fireballs", 50, 95, 38),
+            ("Amulet of the Planes", 65, 100, 45),
+            ("Heart of the Dragon", 75, 100, 52),
+            ("Tear of the Gods", 90, 100, 65),
+        };
+
+        #endregion
+
         #region Main Generation Methods
 
         /// <summary>
@@ -470,6 +521,146 @@ public static class LootGenerator
                 return GenerateWeapon(dungeonLevel, playerClass);
             else
                 return GenerateArmor(dungeonLevel, playerClass);
+        }
+
+        /// <summary>
+        /// Generate a ring drop for dungeon loot
+        /// </summary>
+        public static Item GenerateRing(int dungeonLevel, ItemRarity? forcedRarity = null)
+        {
+            var rarity = forcedRarity ?? RollRarity(dungeonLevel);
+
+            var candidates = RingTemplates
+                .Where(r => dungeonLevel >= r.MinLevel && dungeonLevel <= r.MaxLevel)
+                .ToList();
+
+            if (candidates.Count == 0)
+            {
+                // Fallback to any ring
+                candidates = RingTemplates.ToList();
+            }
+
+            var template = candidates[random.Next(candidates.Count)];
+            return CreateAccessoryFromTemplate(template, dungeonLevel, rarity, ObjType.Fingers);
+        }
+
+        /// <summary>
+        /// Generate a necklace drop for dungeon loot
+        /// </summary>
+        public static Item GenerateNecklace(int dungeonLevel, ItemRarity? forcedRarity = null)
+        {
+            var rarity = forcedRarity ?? RollRarity(dungeonLevel);
+
+            var candidates = NecklaceTemplates
+                .Where(n => dungeonLevel >= n.MinLevel && dungeonLevel <= n.MaxLevel)
+                .ToList();
+
+            if (candidates.Count == 0)
+            {
+                // Fallback to any necklace
+                candidates = NecklaceTemplates.ToList();
+            }
+
+            var template = candidates[random.Next(candidates.Count)];
+            return CreateAccessoryFromTemplate(template, dungeonLevel, rarity, ObjType.Neck);
+        }
+
+        /// <summary>
+        /// Generate loot specifically for mini-boss/champion monsters
+        /// Mini-bosses ALWAYS drop equipment (weapon, armor, ring, or necklace)
+        /// </summary>
+        public static Item GenerateMiniBossLoot(int dungeonLevel, CharacterClass playerClass)
+        {
+            // Boost rarity for mini-boss drops (at least Uncommon, better chances for rare+)
+            var rarity = RollRarity(dungeonLevel + 10); // +10 level bonus for rarity
+            if (rarity == ItemRarity.Common)
+                rarity = ItemRarity.Uncommon;
+
+            // 35% weapon, 30% armor, 20% ring, 15% necklace
+            double roll = random.NextDouble();
+            if (roll < 0.35)
+                return GenerateWeaponWithRarity(dungeonLevel, playerClass, rarity);
+            else if (roll < 0.65)
+                return GenerateArmorWithRarity(dungeonLevel, playerClass, rarity);
+            else if (roll < 0.85)
+                return GenerateRing(dungeonLevel, rarity);
+            else
+                return GenerateNecklace(dungeonLevel, rarity);
+        }
+
+        /// <summary>
+        /// Generate loot for actual floor bosses (Old Gods, dungeon bosses)
+        /// Bosses drop higher quality items (Epic+) with better stats
+        /// </summary>
+        public static Item GenerateBossLoot(int dungeonLevel, CharacterClass playerClass)
+        {
+            // Boss loot is always at least Epic rarity
+            var rarity = RollRarity(dungeonLevel + 25); // +25 level bonus for rarity
+            if (rarity < ItemRarity.Epic)
+                rarity = ItemRarity.Epic;
+
+            // 40% weapon, 35% armor, 15% ring, 10% necklace
+            double roll = random.NextDouble();
+            if (roll < 0.40)
+                return GenerateWeaponWithRarity(dungeonLevel, playerClass, rarity);
+            else if (roll < 0.75)
+                return GenerateArmorWithRarity(dungeonLevel, playerClass, rarity);
+            else if (roll < 0.90)
+                return GenerateRing(dungeonLevel, rarity);
+            else
+                return GenerateNecklace(dungeonLevel, rarity);
+        }
+
+        /// <summary>
+        /// Generate a weapon with a specific rarity
+        /// </summary>
+        private static Item GenerateWeaponWithRarity(int dungeonLevel, CharacterClass playerClass, ItemRarity rarity)
+        {
+            var candidates = WeaponTemplates
+                .Where(w => dungeonLevel >= w.MinLevel && dungeonLevel <= w.MaxLevel)
+                .Where(w => w.Classes.Contains("All") || w.Classes.Contains(playerClass.ToString()))
+                .ToList();
+
+            if (candidates.Count == 0)
+            {
+                candidates = WeaponTemplates
+                    .Where(w => dungeonLevel >= w.MinLevel && dungeonLevel <= w.MaxLevel)
+                    .ToList();
+            }
+
+            if (candidates.Count == 0)
+            {
+                return CreateBasicWeapon(dungeonLevel, rarity);
+            }
+
+            var template = candidates[random.Next(candidates.Count)];
+            return CreateWeaponFromTemplate(template, dungeonLevel, rarity);
+        }
+
+        /// <summary>
+        /// Generate armor with a specific rarity
+        /// </summary>
+        private static Item GenerateArmorWithRarity(int dungeonLevel, CharacterClass playerClass, ItemRarity rarity)
+        {
+            var candidates = ArmorTemplates
+                .Where(a => dungeonLevel >= a.MinLevel && dungeonLevel <= a.MaxLevel)
+                .Where(a => a.Classes.Contains("All") || a.Classes.Contains(playerClass.ToString()))
+                .ToList();
+
+            if (candidates.Count == 0)
+            {
+                candidates = ArmorTemplates
+                    .Where(a => dungeonLevel >= a.MinLevel && dungeonLevel <= a.MaxLevel)
+                    .ToList();
+            }
+
+            if (candidates.Count == 0)
+            {
+                return CreateBasicArmor(dungeonLevel, rarity);
+            }
+
+            var template = candidates[random.Next(candidates.Count)];
+            return CreateArmorFromTemplate(template, dungeonLevel, rarity);
         }
 
         #endregion
@@ -574,6 +765,71 @@ public static class LootGenerator
             if (isCursed)
             {
                 item.Armor = (int)(item.Armor * 1.25f);
+                item.Value = (long)(item.Value * 0.5f);
+                ApplyCursePenalties(item);
+            }
+
+            return item;
+        }
+
+        private static Item CreateAccessoryFromTemplate(
+            (string Name, int MinLevel, int MaxLevel, float BasePower) template,
+            int level,
+            ItemRarity rarity,
+            ObjType accessoryType)
+        {
+            var stats = RarityStats[rarity];
+
+            float levelScale = 1.0f + (level / 25.0f);
+            int basePower = (int)(template.BasePower * levelScale * stats.PowerMult);
+
+            int variance = (int)(basePower * 0.15f);
+            int finalPower = basePower + random.Next(-variance, variance + 1);
+            finalPower = Math.Max(2, finalPower);
+
+            // Accessories are worth more per power point
+            long value = (long)(finalPower * 30 * stats.ValueMult);
+
+            // Accessories get more stat-focused effects
+            var effects = RollEffects(rarity, level, isWeapon: false);
+            bool isCursed = random.NextDouble() < stats.CurseChance;
+
+            string name = BuildItemName(template.Name, rarity, effects, isCursed);
+
+            var item = new Item
+            {
+                Name = name,
+                Type = accessoryType,
+                Value = value,
+                MinLevel = Math.Max(1, level - 10),
+                Cursed = isCursed,
+                IsCursed = isCursed,
+                Shop = false,
+                Dungeon = true
+            };
+
+            // Accessories primarily give stat bonuses rather than attack/armor
+            // Apply base power as a mix of stats
+            if (accessoryType == ObjType.Fingers) // Ring
+            {
+                item.Strength += finalPower / 4;
+                item.Dexterity += finalPower / 4;
+                item.HP += finalPower * 2;
+            }
+            else if (accessoryType == ObjType.Neck) // Necklace
+            {
+                item.Wisdom += finalPower / 3;
+                item.Mana += finalPower * 2;
+                item.HP += finalPower;
+            }
+
+            ApplyEffectsToItem(item, effects, isWeapon: false);
+
+            if (isCursed)
+            {
+                // Cursed accessories have higher stats but penalties
+                item.Strength = (int)(item.Strength * 1.3f);
+                item.HP = (int)(item.HP * 1.3f);
                 item.Value = (long)(item.Value * 0.5f);
                 ApplyCursePenalties(item);
             }

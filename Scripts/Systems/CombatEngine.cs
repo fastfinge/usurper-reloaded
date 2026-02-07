@@ -369,6 +369,23 @@ public partial class CombatEngine
             terminal.SetColor("yellow");
             terminal.WriteLine("You escaped from combat!");
 
+            // Show NPC teammate reactions to fleeing
+            if (result.Teammates != null && result.Teammates.Count > 0)
+            {
+                foreach (var teammate in result.Teammates)
+                {
+                    if (teammate is NPC npc && npc.IsAlive)
+                    {
+                        string reaction = npc.GetReaction(result.Player as Player, "combat_flee");
+                        if (!string.IsNullOrEmpty(reaction))
+                        {
+                            terminal.SetColor("cyan");
+                            terminal.WriteLine($"  {npc.Name2}: \"{reaction}\"");
+                        }
+                    }
+                }
+            }
+
             // Track flee telemetry for multi-monster
             int maxMonsterLevel = monsters.Any() ? monsters.Max(m => m.Level) : 0;
             TelemetrySystem.Instance.TrackCombat(
@@ -1505,8 +1522,8 @@ public partial class CombatEngine
         backstabPower = (long)(backstabPower * GameConfig.BackstabMultiplier); // 3x damage
         
         // Backstab success chance based on dexterity
-        // Dexterity is stored as a long – clamp and cast so the RNG upper-bound stays in the valid Int32 range
-        int successChance = (int)Math.Min(int.MaxValue, player.Dexterity * 2L);
+        // Formula: DEX * 2, but capped at 75% to prevent guaranteed success exploit
+        int successChance = Math.Min(75, (int)(player.Dexterity * 2));
         if (random.Next(100) < successChance)
         {
             terminal.SetColor("bright_red");
@@ -1582,7 +1599,7 @@ public partial class CombatEngine
         // IMPROVED ESCAPE FORMULA:
         // Base 40% + Dexterity bonus (each 10 dex = +5%) + Level bonus (each 10 levels = +3%)
         // Rangers/Assassins get +15% bonus
-        // Maximum 85% chance to escape
+        // Maximum 75% chance to escape (prevents guaranteed escapes)
         int escapeChance = 40;
         escapeChance += (int)(player.Dexterity / 2); // Dex contributes significantly
         escapeChance += player.Level / 3; // Level helps too
@@ -1593,8 +1610,8 @@ public partial class CombatEngine
         if (player.Class == CharacterClass.Jester || player.Class == CharacterClass.Bard)
             escapeChance += 10;
 
-        // Cap at 85%
-        escapeChance = Math.Min(85, escapeChance);
+        // Cap at 75% to prevent guaranteed escapes
+        escapeChance = Math.Min(75, escapeChance);
 
         terminal.SetColor("gray");
         terminal.WriteLine($"(Escape chance: {escapeChance}%)");
@@ -1650,8 +1667,8 @@ public partial class CombatEngine
         terminal.WriteLine("You beg for mercy!");
         
         // Mercy chance based on charisma
-        // Charisma is a long – clamp before cast to prevent overflow
-        int mercyChance = (int)Math.Min(int.MaxValue, player.Charisma * 2L);
+        // Formula: CHA * 2, but capped at 75% to prevent guaranteed escape exploit
+        int mercyChance = Math.Min(75, (int)(player.Charisma * 2));
         if (random.Next(100) < mercyChance && !globalBegged)
         {
             terminal.SetColor("green");
@@ -2472,21 +2489,52 @@ public partial class CombatEngine
         // Base 15% per monster, higher level monsters have better drop rates
         foreach (var monster in result.DefeatedMonsters)
         {
+            Item? loot = null;
+
+            // Mini-bosses (Champions) ALWAYS drop equipment
+            if (monster.IsMiniBoss)
+            {
+                loot = LootGenerator.GenerateMiniBossLoot(monster.Level, result.Player.Class);
+                if (loot != null)
+                {
+                    terminal.WriteLine("");
+                    terminal.SetColor("bright_yellow");
+                    terminal.WriteLine("The Champion drops valuable equipment!");
+                    await DisplayEquipmentDrop(loot, monster, result.Player);
+                }
+                continue; // Skip normal drop logic for mini-bosses
+            }
+
+            // Bosses ALWAYS drop high-quality equipment
+            if (monster.IsBoss)
+            {
+                loot = LootGenerator.GenerateBossLoot(monster.Level, result.Player.Class);
+                if (loot != null)
+                {
+                    terminal.WriteLine("");
+                    terminal.SetColor("bright_yellow");
+                    terminal.WriteLine("The Boss drops powerful equipment!");
+                    await DisplayEquipmentDrop(loot, monster, result.Player);
+                }
+                continue; // Skip normal drop logic for bosses
+            }
+
+            // Regular monsters - normal drop chance
             // Drop chance: 15% base + 0.5% per monster level, capped at 40%
             double dropChance = 0.15 + (monster.Level * 0.005);
             dropChance = Math.Min(0.40, dropChance);
 
-            // Boss monsters have 80% drop chance
-            if (monster.IsBoss || monster.Name.Contains("Boss") || monster.Name.Contains("Chief") ||
+            // Named monsters (Lords, Chiefs, Kings) have better drop chance
+            if (monster.Name.Contains("Boss") || monster.Name.Contains("Chief") ||
                 monster.Name.Contains("Lord") || monster.Name.Contains("King"))
             {
-                dropChance = 0.80;
+                dropChance = 0.60;
             }
 
             if (random.NextDouble() < dropChance)
             {
                 // Generate loot using the new LootGenerator system
-                var loot = LootGenerator.GenerateDungeonLoot(monster.Level, result.Player.Class);
+                loot = LootGenerator.GenerateDungeonLoot(monster.Level, result.Player.Class);
 
                 if (loot != null)
                 {
@@ -6146,6 +6194,24 @@ public partial class CombatEngine
         }
         terminal.WriteLine("");
 
+        // Show NPC teammate reactions after combat victory
+        if (result.Teammates != null && result.Teammates.Count > 0)
+        {
+            foreach (var teammate in result.Teammates)
+            {
+                if (teammate is NPC npc && npc.IsAlive)
+                {
+                    string reaction = npc.GetReaction(result.Player as Player, "combat_victory");
+                    if (!string.IsNullOrEmpty(reaction))
+                    {
+                        terminal.SetColor("cyan");
+                        terminal.WriteLine($"  {npc.Name2}: \"{reaction}\"");
+                    }
+                }
+            }
+            terminal.WriteLine("");
+        }
+
         // Check for equipment drop!
         await CheckForEquipmentDrop(result);
 
@@ -6272,6 +6338,25 @@ public partial class CombatEngine
         await UsurperRemake.UI.ANSIArt.DisplayArtAnimated(terminal, UsurperRemake.UI.ANSIArt.Death, 60);
         terminal.WriteLine("");
         await Task.Delay(GetCombatDelay(1000));
+
+        // Show NPC teammate reactions to player death
+        if (result.Teammates != null && result.Teammates.Count > 0)
+        {
+            foreach (var teammate in result.Teammates)
+            {
+                if (teammate is NPC npc && npc.IsAlive)
+                {
+                    string reaction = npc.GetReaction(result.Player as Player, "ally_death");
+                    if (!string.IsNullOrEmpty(reaction))
+                    {
+                        terminal.SetColor("cyan");
+                        terminal.WriteLine($"  {npc.Name2}: \"{reaction}\"");
+                    }
+                }
+            }
+            terminal.WriteLine("");
+            await Task.Delay(GetCombatDelay(1500));
+        }
 
         result.Player.HP = 0;
         result.Player.MDefeats++;

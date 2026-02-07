@@ -1738,8 +1738,22 @@ namespace UsurperRemake.Systems
                 string confirm = await terminal.GetInput("  ");
                 if (confirm.ToUpper() == "Y")
                 {
-                    // Trigger intimacy system
+                    // Trigger intimacy system with full scene
                     await IntimacySystem.Instance.StartIntimateScene(player!, npc, terminal);
+                }
+                else
+                {
+                    // Player chose to skip the explicit content, but the encounter still happens
+                    // Apply all mechanical benefits (relationship boost, pregnancy check, memory)
+                    await IntimacySystem.Instance.ApplyIntimacyBenefitsOnly(player!, npc, terminal);
+
+                    terminal.WriteLine("");
+                    terminal.SetColor("dark_magenta");
+                    terminal.WriteLine("  [The two of you share an intimate moment together...]");
+                    terminal.SetColor("gray");
+                    terminal.WriteLine("");
+                    terminal.WriteLine("  Some time later, you find yourselves content in each other's arms.");
+                    await Task.Delay(1500);
                 }
             }
             else

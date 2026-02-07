@@ -122,6 +122,13 @@ public class DailySystemManager
         currentDay++;
         lastResetTime = DateTime.Now;
 
+        // Sync StoryProgressionSystem's game day counter (used for Vex death tracking, etc.)
+        try
+        {
+            StoryProgressionSystem.Instance.CurrentGameDay = currentDay;
+        }
+        catch { /* StoryProgressionSystem not initialized */ }
+
         // Log the daily reset
         DebugLogger.Instance.LogDailyReset(currentDay);
 
@@ -416,7 +423,14 @@ public class DailySystemManager
         currentMode = saveData.DailyCycleMode;
         autoSaveEnabled = saveData.Settings.AutoSaveEnabled;
         autoSaveInterval = saveData.Settings.AutoSaveInterval;
-        
+
+        // Sync StoryProgressionSystem's game day counter
+        try
+        {
+            StoryProgressionSystem.Instance.CurrentGameDay = currentDay;
+        }
+        catch { /* StoryProgressionSystem not initialized */ }
+
         GD.Print($"Daily system loaded: Day {currentDay}, Mode {currentMode}");
     }
     

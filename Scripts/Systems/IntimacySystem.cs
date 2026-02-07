@@ -57,6 +57,43 @@ namespace UsurperRemake.Systems
         }
 
         /// <summary>
+        /// Apply all intimacy benefits without showing any scene content
+        /// Used when player chooses to skip explicit content but still wants the encounter to happen
+        /// </summary>
+        public async Task ApplyIntimacyBenefitsOnly(Character player, NPC partner, TerminalEmulator term)
+        {
+            this.player = player;
+            this.terminal = term;
+
+            var partners = new List<NPC> { partner };
+            bool isFirstTime = !RomanceTracker.Instance.EncounterHistory.Any(e => e.PartnerIds.Contains(partner.ID));
+
+            // Record the encounter
+            var encounter = new IntimateEncounter
+            {
+                Date = DateTime.Now,
+                Location = "Private quarters",
+                PartnerIds = partners.Select(p => p.ID).ToList(),
+                Type = EncounterType.Solo,
+                Mood = IntimacyMood.Tender,
+                IsFirstTime = isFirstTime
+            };
+            RomanceTracker.Instance.RecordEncounter(encounter);
+
+            // Relationship boost from intimacy
+            int baseSteps = 3;
+            int adjustedSteps = DifficultySystem.ApplyRelationshipMultiplier(baseSteps);
+            foreach (var p in partners)
+            {
+                RelationshipSystem.UpdateRelationship(player, p, 1, adjustedSteps, false, false);
+                RelationshipSystem.UpdateRelationship(p, player, 1, adjustedSteps, false, false);
+            }
+
+            // Check for pregnancy
+            await CheckForPregnancy(partner);
+        }
+
+        /// <summary>
         /// Main scene runner
         /// </summary>
         private async Task RunIntimateScene(List<NPC> partners, IntimacyMood mood, bool isFirstTime)
@@ -109,13 +146,17 @@ namespace UsurperRemake.Systems
             };
             RomanceTracker.Instance.RecordEncounter(encounter);
 
-            // Relationship boost from intimacy - significant boost with override to break friendship cap
+            // Relationship boost from intimacy - modest gain, no longer bypasses friendship cap
             // Steps are affected by difficulty: Easy = more gain, Hard/Nightmare = less gain
-            int baseSteps = 10;
+            // Reduced from 10 to 3 base steps for balance (v0.26 relationship rebalance)
+            int baseSteps = 3;
             int adjustedSteps = DifficultySystem.ApplyRelationshipMultiplier(baseSteps);
             foreach (var partner in partners)
             {
-                RelationshipSystem.UpdateRelationship(player!, partner, 1, adjustedSteps, false, true);
+                // Update player's feeling toward partner
+                RelationshipSystem.UpdateRelationship(player!, partner, 1, adjustedSteps, false, false);
+                // Also update partner's feeling toward player (bidirectional)
+                RelationshipSystem.UpdateRelationship(partner, player!, 1, adjustedSteps, false, false);
             }
 
             // Check for pregnancy (only for opposite-sex spouse encounters)

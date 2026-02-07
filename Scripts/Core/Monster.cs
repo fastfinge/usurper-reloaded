@@ -57,6 +57,7 @@ public class Monster
     
     // Special monster flags
     public bool IsBoss { get; set; } = false;
+    public bool IsMiniBoss { get; set; } = false;       // Champion/elite monsters (10% random encounters)
     public bool IsUnique { get; set; } = false;
     public bool CanSpeak { get; set; } = false;         // From Pascal mon_talk setting
     
@@ -540,10 +541,11 @@ public class Monster
     {
         var status = "";
         if (IsBoss) status += " [BOSS]";
+        else if (IsMiniBoss) status += " [CHAMPION]";
         if (IsUnique) status += " [UNIQUE]";
         if (Poisoned) status += " [POISONED]";
         if (Disease) status += " [DISEASED]";
-        
+
         return $"{Name} (Level {Level}) - HP: {HP}{status}";
     }
     

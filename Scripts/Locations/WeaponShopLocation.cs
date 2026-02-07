@@ -700,6 +700,9 @@ public class WeaponShopLocation : BaseLocation
                 "weapon", "buy", item.Name, adjustedPrice,
                 currentPlayer.Level, currentPlayer.Gold
             );
+
+            // Check for equipment quest completion
+            QuestSystem.OnEquipmentPurchased(currentPlayer, item);
         }
         else
         {
@@ -1079,6 +1082,9 @@ public class WeaponShopLocation : BaseLocation
                         }
                         purchased = true;
                         currentPlayer.RecalculateStats();
+
+                        // Check for equipment quest completion
+                        QuestSystem.OnEquipmentPurchased(currentPlayer, weapon);
                     }
                     else
                     {

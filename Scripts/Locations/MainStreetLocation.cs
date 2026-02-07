@@ -465,6 +465,7 @@ public class MainStreetLocation : BaseLocation
         terminal.WriteLine("  X - Love Street");
         terminal.WriteLine("  Q - Quit Game");
         terminal.WriteLine("  ? - Help");
+        terminal.WriteLine("  ! - Report Bug");
         terminal.WriteLine("");
     }
     
@@ -624,7 +625,11 @@ public class MainStreetLocation : BaseLocation
             case "?":
                 await ShowHelp();
                 return false;
-                
+
+            case "!":
+                await BugReportSystem.ReportBug(terminal, currentPlayer);
+                return false;
+
             case "3":
                 await ListCharacters();
                 return false;

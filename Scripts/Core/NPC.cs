@@ -641,6 +641,7 @@ public partial class NPC : Character
     
     /// <summary>
     /// Get greeting for a player (Pascal compatible)
+    /// Uses the Dynamic NPC Dialogue Generator for rich, personality-driven greetings
     /// </summary>
     public string GetGreeting(Character player)
     {
@@ -660,11 +661,41 @@ public partial class NPC : Character
             }
         }
 
-        // Use personality and relationship to generate greeting
-        // Null checks for safety: Relationships or player.Name2 could be null
+        // Use the Dynamic NPC Dialogue Generator for rich, contextual greetings
+        if (player is Player playerChar)
+        {
+            return NPCDialogueGenerator.GenerateGreeting(this, playerChar);
+        }
+
+        // Fallback for non-Player characters - use legacy personality-based greeting
         string playerName = player?.Name2 ?? player?.Name1 ?? "stranger";
         int relationship = Relationships?.GetRelationshipWith(playerName) ?? 0;
         return Brain?.GenerateGreeting(player, relationship) ?? "Hello there.";
+    }
+
+    /// <summary>
+    /// Get a farewell message for the player
+    /// </summary>
+    public string GetFarewell(Player player)
+    {
+        if (player == null) return "Farewell.";
+        return NPCDialogueGenerator.GenerateFarewell(this, player);
+    }
+
+    /// <summary>
+    /// Get small talk/conversation for the player
+    /// </summary>
+    public string GetSmallTalk(Player player)
+    {
+        return NPCDialogueGenerator.GenerateSmallTalk(this, player);
+    }
+
+    /// <summary>
+    /// Get a reaction to an event
+    /// </summary>
+    public string GetReaction(Player player, string eventType)
+    {
+        return NPCDialogueGenerator.GenerateReaction(this, player, eventType);
     }
     
     /// <summary>

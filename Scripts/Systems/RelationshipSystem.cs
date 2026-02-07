@@ -16,7 +16,12 @@ public partial class RelationshipSystem
     public static RelationshipSystem Instance { get; } = new RelationshipSystem();
     private static Dictionary<string, Dictionary<string, RelationshipRecord>> _relationships = new();
     private static Random _random = new Random();
-    
+
+    // Daily relationship gain tracking (v0.26) - prevents relationship flooding
+    // Key format: "{character1}_{character2}_{date}" -> steps gained today
+    private static Dictionary<string, int> _dailyRelationshipGains = new();
+    private static DateTime _lastDailyReset = DateTime.MinValue;
+
     /// <summary>
     /// Relationship record structure based on Pascal RelationRec
     /// Tracks bidirectional relationships between characters
@@ -45,8 +50,9 @@ public partial class RelationshipSystem
         public int Kids { get; set; }                   // children produced
         public int KilledBy1 { get; set; }              // name2 killed by name1 count
         public int KilledBy2 { get; set; }              // name1 killed by name2 count
-        public DateTime CreatedDate { get; set; }       // when relationship started
+        public DateTime CreatedDate { get; set; }       // when relationship started (real time)
         public DateTime LastUpdated { get; set; }       // last update time
+        public int CreatedOnGameDay { get; set; }       // in-game day when relationship started (v0.26)
     }
     
     /// <summary>
@@ -70,6 +76,7 @@ public partial class RelationshipSystem
     /// <summary>
     /// Update relationship between two characters
     /// Pascal equivalent: Update_Relation procedure
+    /// v0.26: Added daily relationship gain cap to prevent relationship flooding
     /// </summary>
     public static void UpdateRelationship(Character character1, Character character2, int direction, int steps = 1, bool _unused = false, bool overrideMaxFeeling = false)
     {
@@ -78,7 +85,19 @@ public partial class RelationshipSystem
         // Track old relation to detect new friendships
         int oldRelation = relation.Relation1;
 
-        for (int i = 0; i < steps; i++)
+        // v0.26: Enforce daily relationship gain cap for positive relationship changes
+        int effectiveSteps = steps;
+        if (direction > 0)
+        {
+            effectiveSteps = EnforceDailyRelationshipCap(character1.Name, character2.Name, steps);
+            if (effectiveSteps <= 0)
+            {
+                // Daily cap reached, no more gains today
+                return;
+            }
+        }
+
+        for (int i = 0; i < effectiveSteps; i++)
         {
             if (direction > 0) // Improve relationship
             {
@@ -103,6 +122,31 @@ public partial class RelationshipSystem
 
         // Send relationship change notification
         SendRelationshipChangeNotification(character1, character2, relation.Relation1);
+    }
+
+    /// <summary>
+    /// Enforce daily relationship gain cap (v0.26)
+    /// Returns the number of steps that can be applied without exceeding the cap
+    /// </summary>
+    private static int EnforceDailyRelationshipCap(string name1, string name2, int requestedSteps)
+    {
+        // Reset daily tracking if it's a new day
+        if (_lastDailyReset.Date != DateTime.Now.Date)
+        {
+            _dailyRelationshipGains.Clear();
+            _lastDailyReset = DateTime.Now;
+        }
+
+        string key = $"{name1}_{name2}_{DateTime.Now:yyyyMMdd}";
+        int alreadyGained = _dailyRelationshipGains.GetValueOrDefault(key, 0);
+        int remaining = GameConfig.MaxDailyRelationshipGain - alreadyGained;
+
+        if (remaining <= 0) return 0;
+
+        int actualSteps = Math.Min(requestedSteps, remaining);
+        _dailyRelationshipGains[key] = alreadyGained + actualSteps;
+
+        return actualSteps;
     }
     
     /// <summary>
@@ -165,6 +209,7 @@ public partial class RelationshipSystem
     /// <summary>
     /// Perform marriage ceremony between two characters
     /// Pascal equivalent: marry_routine from LOVERS.PAS
+    /// v0.26: Added minimum relationship duration and NPC proposal acceptance
     /// </summary>
     public static bool PerformMarriage(Character character1, Character character2, out string message)
     {
@@ -188,35 +233,60 @@ public partial class RelationshipSystem
             message = "Both parties must be at least 18 years old to marry!";
             return false;
         }
-        
+
         if (GetSpouseName(character1) != "" || GetSpouseName(character2) != "")
         {
             message = "One or both parties are already married!";
             return false;
         }
-        
+
         if (character1.IntimacyActs < 1)
         {
             message = "You have no intimacy acts left today!";
             return false;
         }
-        
+
         var relation = GetOrCreateRelationship(character1, character2);
-        
+
         // Both must be in love to marry
         if (relation.Relation1 != GameConfig.RelationLove || relation.Relation2 != GameConfig.RelationLove)
         {
             message = "You both need to be in love with each other to marry!";
             return false;
         }
-        
+
         // Check if marriage is banned
         if (relation.BannedMarry)
         {
             message = "Marriage between these characters has been banned by the King!";
             return false;
         }
-        
+
+        // v0.26: Check minimum relationship duration (7 in-game days)
+        int currentGameDay = 1;
+        try { currentGameDay = StoryProgressionSystem.Instance.CurrentGameDay; }
+        catch { /* StoryProgressionSystem not initialized */ }
+
+        int daysSinceRelationshipStart = currentGameDay - relation.CreatedOnGameDay;
+        if (daysSinceRelationshipStart < GameConfig.MinDaysBeforeMarriage)
+        {
+            int daysRemaining = GameConfig.MinDaysBeforeMarriage - daysSinceRelationshipStart;
+            message = $"Your relationship is too new! Wait {daysRemaining} more day{(daysRemaining > 1 ? "s" : "")} before proposing.";
+            return false;
+        }
+
+        // v0.26: NPC proposal acceptance check (if character2 is NPC)
+        if (character2 is NPC npcPartner)
+        {
+            int acceptanceChance = CalculateProposalAcceptance(character1, npcPartner);
+            int roll = _random.Next(100);
+            if (roll >= acceptanceChance)
+            {
+                message = GetProposalRejectionMessage(npcPartner, acceptanceChance);
+                return false;
+            }
+        }
+
         // Perform marriage ceremony
         relation.Relation1 = GameConfig.RelationMarried;
         relation.Relation2 = GameConfig.RelationMarried;
@@ -460,6 +530,11 @@ public partial class RelationshipSystem
         
         if (!_relationships[key1].ContainsKey(key2))
         {
+            // Get current in-game day for tracking relationship duration
+            int currentGameDay = 1;
+            try { currentGameDay = StoryProgressionSystem.Instance.CurrentGameDay; }
+            catch { /* StoryProgressionSystem not initialized */ }
+
             var newRelation = new RelationshipRecord
             {
                 Name1 = character1.Name,
@@ -473,9 +548,10 @@ public partial class RelationshipSystem
                 IdTag1 = character1.ID,
                 IdTag2 = character2.ID,
                 CreatedDate = DateTime.Now,
-                LastUpdated = DateTime.Now
+                LastUpdated = DateTime.Now,
+                CreatedOnGameDay = currentGameDay  // v0.26: Track in-game day
             };
-            
+
             _relationships[key1][key2] = newRelation;
         }
         
@@ -595,6 +671,85 @@ public partial class RelationshipSystem
         GD.Print($"Automatic divorce: {relation.Name1} and {relation.Name2} divorced after {relation.MarriedDays} days");
     }
 
+    /// <summary>
+    /// Calculate NPC proposal acceptance chance based on personality (v0.26)
+    /// Base 50% + personality modifiers + charisma modifier
+    /// </summary>
+    private static int CalculateProposalAcceptance(Character proposer, NPC npc)
+    {
+        int acceptance = GameConfig.BaseProposalAcceptance; // 50%
+
+        // Personality modifiers from NPC brain
+        if (npc.Brain?.Personality != null)
+        {
+            var personality = npc.Brain.Personality;
+
+            // Romanticism increases acceptance (+0-20%)
+            acceptance += (int)(personality.Romanticism * 20);
+
+            // Commitment increases acceptance (+0-15%)
+            acceptance += (int)(personality.Commitment * 15);
+
+            // Low commitment (independence) decreases acceptance (-0-10%)
+            acceptance -= (int)((1f - personality.Commitment) * 10);
+
+            // Low romanticism (cynicism) decreases acceptance (-0-8%)
+            acceptance -= (int)((1f - personality.Romanticism) * 8);
+        }
+
+        // Proposer's charisma modifier (+0-15% based on Charisma)
+        int charismaBonus = Math.Min(15, (int)(proposer.Charisma / 4));
+        acceptance += charismaBonus;
+
+        // Relationship depth bonus (longer relationships = higher acceptance)
+        var relation = GetRelationship(proposer, npc);
+        if (relation != null)
+        {
+            // Use in-game days for consistency
+            int currentGameDay = 1;
+            try { currentGameDay = StoryProgressionSystem.Instance.CurrentGameDay; }
+            catch { /* StoryProgressionSystem not initialized */ }
+
+            int daysTogether = currentGameDay - relation.CreatedOnGameDay;
+            int loyaltyBonus = Math.Min(15, daysTogether / 2); // +1% per 2 in-game days, max +15%
+            acceptance += loyaltyBonus;
+        }
+
+        // Clamp to 20-95% (never guaranteed, never impossible if in love)
+        return Math.Clamp(acceptance, 20, 95);
+    }
+
+    /// <summary>
+    /// Get personalized rejection message based on NPC personality (v0.26)
+    /// </summary>
+    private static string GetProposalRejectionMessage(NPC npc, int acceptanceChance)
+    {
+        string name = npc.Name2 ?? npc.Name ?? "They";
+        string pronoun = npc.Sex == CharacterSex.Female ? "she" : "he";
+
+        // Low acceptance = strong rejection
+        if (acceptanceChance < 30)
+        {
+            return $"{name} looks uncomfortable and steps back.\n" +
+                   $"\"I... I'm sorry, but I'm not ready for that kind of commitment.\"\n" +
+                   $"{pronoun.Substring(0, 1).ToUpper() + pronoun.Substring(1)} needs more time.";
+        }
+        // Medium acceptance = hesitant rejection
+        else if (acceptanceChance < 50)
+        {
+            return $"{name} takes your hands gently but {pronoun} eyes are uncertain.\n" +
+                   $"\"I care about you deeply, but... not yet. Let's give it more time.\"\n" +
+                   $"Perhaps try again when your bond is stronger.";
+        }
+        // High acceptance = close call rejection
+        else
+        {
+            return $"{name} hesitates, clearly tempted.\n" +
+                   $"\"Ask me again soon... I just need a little more time.\"\n" +
+                   $"You sense {pronoun}'s close to saying yes.";
+        }
+    }
+
     #region Serialization
 
     /// <summary>
@@ -624,7 +779,8 @@ public partial class RelationshipSystem
                         Relation2 = relation.Relation2,
                         MarriedDays = relation.MarriedDays,
                         Deleted = relation.Deleted,
-                        LastUpdated = relation.LastUpdated
+                        LastUpdated = relation.LastUpdated,
+                        CreatedOnGameDay = relation.CreatedOnGameDay  // In-game day tracking (v0.26)
                     });
                 }
             }
@@ -661,7 +817,8 @@ public partial class RelationshipSystem
                 Relation2 = saved.Relation2,
                 MarriedDays = saved.MarriedDays,
                 Deleted = saved.Deleted,
-                LastUpdated = saved.LastUpdated
+                LastUpdated = saved.LastUpdated,
+                CreatedOnGameDay = saved.CreatedOnGameDay  // Restore in-game day tracking (v0.26)
             };
         }
 

@@ -19,20 +19,24 @@ public partial class QuestSystem : Node
     /// <summary>
     /// Create new quest (Pascal: Royal quest initiation from RQUESTS.PAS)
     /// </summary>
-    public static Quest CreateQuest(Character king, QuestTarget target, byte difficulty, 
-                                   string comment, QuestType questType = QuestType.SingleQuest)
+    public static Quest CreateQuest(Character king, QuestTarget target, byte difficulty,
+                                   string comment, QuestType questType = QuestType.SingleQuest,
+                                   int targetPlayerLevel = 0)
     {
         // Validate king can create quest
         if (king.QuestsLeft < 1)
         {
             throw new InvalidOperationException("King has no quests left today");
         }
-        
+
         if (questDatabase.Count >= GameConfig.MaxQuestsAllowed)
         {
             throw new InvalidOperationException("Quest database is full");
         }
-        
+
+        // Use king's level as fallback for target player level
+        int playerLevel = targetPlayerLevel > 0 ? targetPlayerLevel : Math.Max(1, king.Level);
+
         var quest = new Quest
         {
             Initiator = king.Name2,
@@ -45,21 +49,21 @@ public partial class QuestSystem : Node
             MaxLevel = 9999,
             DaysToComplete = GameConfig.DefaultQuestDays
         };
-        
-        // Generate quest monsters based on target and difficulty
-        GenerateQuestMonsters(quest);
-        
+
+        // Generate quest monsters based on target, difficulty, and target player level
+        GenerateQuestMonsters(quest, playerLevel);
+
         // Set default rewards based on difficulty
         SetDefaultRewards(quest);
-        
+
         // Add to database
         questDatabase.Add(quest);
-        
+
         // Update king's quest count
         king.QuestsLeft--;
-        
+
         // GD.Print($"[QuestSystem] Quest created by {king.Name2}: {quest.GetTargetDescription()}");
-        
+
         return quest;
     }
     
@@ -251,16 +255,16 @@ public partial class QuestSystem : Node
     
     /// <summary>
     /// Generate quest monsters based on target and difficulty
-    /// Pascal: Monster generation for quests
+    /// Uses MonsterFamilies system for level-appropriate monsters
     /// </summary>
-    private static void GenerateQuestMonsters(Quest quest)
+    private static void GenerateQuestMonsters(Quest quest, int playerLevel = 1)
     {
         if (quest.QuestTarget != QuestTarget.Monster) return;
 
         quest.Monsters.Clear();
 
         // Number of monster types based on difficulty
-        var monsterTypes = quest.Difficulty switch
+        var monsterTypeCount = quest.Difficulty switch
         {
             1 => 1,     // Easy: 1 type
             2 => 2,     // Medium: 2 types
@@ -269,9 +273,31 @@ public partial class QuestSystem : Node
             _ => 1
         };
 
-        for (int i = 0; i < monsterTypes; i++)
+        // Track which monster families we've used to avoid duplicates
+        var usedFamilies = new HashSet<string>();
+
+        for (int i = 0; i < monsterTypeCount; i++)
         {
-            var monsterType = random.Next(1, 21); // Random monster type
+            // Get level-appropriate monster based on player level and difficulty
+            // Difficulty adjusts the target level: higher difficulty = slightly higher level monsters
+            int targetLevel = Math.Max(1, playerLevel + (quest.Difficulty - 2) * 3);
+
+            // Cap to accessible dungeon range (player level ± 10)
+            int maxAccessibleLevel = Math.Min(100, playerLevel + 10);
+            targetLevel = Math.Min(targetLevel, maxAccessibleLevel);
+
+            // Get a level-appropriate monster from MonsterFamilies
+            var (family, tier) = MonsterFamilies.GetMonsterForLevel(targetLevel, random);
+
+            // Try to avoid duplicate families for variety
+            int attempts = 0;
+            while (usedFamilies.Contains(family.FamilyName) && attempts < 5)
+            {
+                (family, tier) = MonsterFamilies.GetMonsterForLevel(targetLevel, random);
+                attempts++;
+            }
+            usedFamilies.Add(family.FamilyName);
+
             var count = quest.Difficulty switch
             {
                 1 => random.Next(3, 8),      // Easy: 3-7 monsters
@@ -281,37 +307,34 @@ public partial class QuestSystem : Node
                 _ => 5
             };
 
-            quest.Monsters.Add(new QuestMonster(monsterType, count, $"Monster Type {monsterType}"));
+            // Use the tier's MinLevel as a pseudo-type identifier for compatibility
+            quest.Monsters.Add(new QuestMonster(tier.MinLevel, count, tier.Name));
         }
     }
 
     /// <summary>
     /// Generate objectives for dungeon quests
+    /// Floor targets are capped to player-accessible range (playerLevel ± 10)
     /// </summary>
-    private static void GenerateDungeonQuestObjectives(Quest quest)
+    private static void GenerateDungeonQuestObjectives(Quest quest, int playerLevel = 10)
     {
         quest.Objectives.Clear();
+
+        // Calculate accessible floor range: player level ± 10
+        int minAccessibleFloor = Math.Max(1, playerLevel - 10);
+        int maxAccessibleFloor = Math.Min(100, playerLevel + 10);
+
+        // Helper to cap floor to accessible range
+        int CapFloor(int floor) => Math.Min(Math.Max(floor, minAccessibleFloor), maxAccessibleFloor);
 
         switch (quest.QuestTarget)
         {
             case QuestTarget.ClearBoss:
-                // Kill a specific boss
-                var bossId = quest.Difficulty switch
-                {
-                    1 => "goblin_chief",
-                    2 => "orc_warlord",
-                    3 => "dragon_young",
-                    4 => "demon_lord",
-                    _ => "unknown_boss"
-                };
-                var bossName = quest.Difficulty switch
-                {
-                    1 => "Goblin Chief",
-                    2 => "Orc Warlord",
-                    3 => "Young Dragon",
-                    4 => "Demon Lord",
-                    _ => "Unknown Boss"
-                };
+                // Kill a specific boss - use level-appropriate monster
+                var (family, tier) = MonsterFamilies.GetMonsterForLevel(
+                    Math.Min(playerLevel + quest.Difficulty * 3, maxAccessibleFloor), random);
+                var bossName = $"{tier.Name} Champion";
+                var bossId = tier.Name.ToLower().Replace(" ", "_") + "_champion";
                 quest.Objectives.Add(new QuestObjective(
                     QuestObjectiveType.KillBoss,
                     $"Defeat the {bossName}",
@@ -320,8 +343,8 @@ public partial class QuestSystem : Node
                 break;
 
             case QuestTarget.FindArtifact:
-                // Find an artifact on a specific floor
-                var artifactFloor = quest.Difficulty * 3 + random.Next(1, 3);
+                // Find an artifact on a specific floor - capped to accessible range
+                var artifactFloor = CapFloor(playerLevel + quest.Difficulty * 2 + random.Next(-2, 3));
                 var artifactId = $"artifact_{random.Next(1, 100)}";
                 var artifactNames = new[] { "Ancient Amulet", "Crystal Orb", "Mystic Tome", "Golden Chalice", "Obsidian Blade" };
                 var artifactName = artifactNames[random.Next(artifactNames.Length)];
@@ -337,8 +360,8 @@ public partial class QuestSystem : Node
                 break;
 
             case QuestTarget.ReachFloor:
-                // Reach a specific floor
-                var targetFloor = quest.Difficulty * 5 + random.Next(1, 5);
+                // Reach a specific floor - capped to accessible range
+                var targetFloor = CapFloor(playerLevel + quest.Difficulty * 2 + random.Next(1, 4));
                 quest.Objectives.Add(new QuestObjective(
                     QuestObjectiveType.ReachDungeonFloor,
                     $"Reach dungeon floor {targetFloor}",
@@ -352,8 +375,8 @@ public partial class QuestSystem : Node
                 break;
 
             case QuestTarget.ClearFloor:
-                // Clear all monsters on a specific floor
-                var clearFloor = quest.Difficulty * 2 + random.Next(1, 3);
+                // Clear all monsters on a specific floor - capped to accessible range
+                var clearFloor = CapFloor(playerLevel + quest.Difficulty + random.Next(-1, 3));
                 var monstersOnFloor = 5 + (quest.Difficulty * 3);
                 quest.Objectives.Add(new QuestObjective(
                     QuestObjectiveType.ReachDungeonFloor,
@@ -367,8 +390,8 @@ public partial class QuestSystem : Node
                 break;
 
             case QuestTarget.RescueNPC:
-                // Rescue an NPC from a dungeon floor
-                var rescueFloor = quest.Difficulty * 3 + random.Next(1, 3);
+                // Rescue an NPC from a dungeon floor - capped to accessible range
+                var rescueFloor = CapFloor(playerLevel + quest.Difficulty * 2 + random.Next(-1, 2));
                 var npcNames = new[] { "Lady Elara", "Sir Marcus", "Priest Aldric", "Merchant Tobias", "Scholar Helena" };
                 var npcName = npcNames[random.Next(npcNames.Length)];
                 quest.Objectives.Add(new QuestObjective(
@@ -383,8 +406,8 @@ public partial class QuestSystem : Node
                 break;
 
             case QuestTarget.SurviveDungeon:
-                // Survive multiple floors without returning
-                var surviveFloors = quest.Difficulty * 3 + random.Next(2, 5);
+                // Survive multiple floors - based on difficulty but within reason
+                var surviveFloors = Math.Min(quest.Difficulty * 3 + random.Next(2, 5), 15);
                 quest.Objectives.Add(new QuestObjective(
                     QuestObjectiveType.ReachDungeonFloor,
                     $"Survive {surviveFloors} consecutive floors",
@@ -401,7 +424,7 @@ public partial class QuestSystem : Node
     /// <summary>
     /// Create a dungeon quest (bounty board style)
     /// </summary>
-    public static Quest CreateDungeonQuest(QuestTarget target, byte difficulty, string dungeonName = "The Dungeon")
+    public static Quest CreateDungeonQuest(QuestTarget target, byte difficulty, string dungeonName = "The Dungeon", int playerLevel = 10)
     {
         if (target < QuestTarget.ClearBoss || target > QuestTarget.SurviveDungeon)
         {
@@ -416,13 +439,13 @@ public partial class QuestSystem : Node
             Difficulty = difficulty,
             Comment = $"Dungeon quest in {dungeonName}",
             Date = DateTime.Now,
-            MinLevel = difficulty * 2,
-            MaxLevel = 9999,
+            MinLevel = Math.Max(1, playerLevel - 5),
+            MaxLevel = playerLevel + 15,
             DaysToComplete = GameConfig.DefaultQuestDays + difficulty
         };
 
-        // Generate objectives based on quest type
-        GenerateDungeonQuestObjectives(quest);
+        // Generate objectives based on quest type with player level consideration
+        GenerateDungeonQuestObjectives(quest, playerLevel);
 
         // Set rewards based on difficulty
         SetDefaultRewards(quest);
@@ -471,7 +494,7 @@ public partial class QuestSystem : Node
             var questTypes = new[] { QuestTarget.ClearBoss, QuestTarget.FindArtifact, QuestTarget.ReachFloor, QuestTarget.ClearFloor, QuestTarget.SurviveDungeon };
             var questType = questTypes[random.Next(questTypes.Length)];
 
-            CreateDungeonQuest(questType, difficulty);
+            CreateDungeonQuest(questType, difficulty, "The Dungeon", playerLevel);
             existingCount++;
         }
 
@@ -1187,7 +1210,7 @@ public partial class QuestSystem : Node
     /// <summary>
     /// Ensure quests exist - call on game start
     /// </summary>
-    public static void EnsureQuestsExist()
+    public static void EnsureQuestsExist(int playerLevel = 10)
     {
         if (questDatabase.Count == 0)
         {
@@ -1196,6 +1219,9 @@ public partial class QuestSystem : Node
 
         // Also ensure King bounties exist
         RefreshKingBounties();
+
+        // Also ensure equipment quests exist
+        EnsureEquipmentQuestsExist(playerLevel);
     }
 
     #endregion
@@ -1353,7 +1379,7 @@ public partial class QuestSystem : Node
         };
 
         var (title, desc, target, monsters) = bountyTypes[random.Next(bountyTypes.Length)];
-        var difficulty = (byte)(random.Next(1, 4));
+        var difficulty = (byte)(random.Next(1, 5)); // 1-4 difficulty (was incorrectly 1-3)
 
         var bounty = new Quest
         {
@@ -1587,6 +1613,221 @@ public partial class QuestSystem : Node
         if (stats.BountiesCompleted >= 10)
         {
             AchievementSystem.TryUnlock(p, "bounty_hunter");
+        }
+    }
+
+    #endregion
+
+    #region Equipment Purchase Quests
+
+    private const string MERCHANT_GUILD_INITIATOR = "Merchant Guild";
+
+    /// <summary>
+    /// Get all equipment purchase quests
+    /// </summary>
+    public static List<Quest> GetEquipmentQuests()
+    {
+        return questDatabase.Where(q =>
+            !q.Deleted &&
+            q.Initiator == MERCHANT_GUILD_INITIATOR
+        ).ToList();
+    }
+
+    /// <summary>
+    /// Refresh equipment purchase quests on the bounty board
+    /// Creates variety by adding weapon, armor, and accessory purchase quests
+    /// </summary>
+    public static void RefreshEquipmentQuests(int playerLevel)
+    {
+        // Remove old unclaimed equipment quests
+        questDatabase.RemoveAll(q =>
+            q.Initiator == MERCHANT_GUILD_INITIATOR &&
+            string.IsNullOrEmpty(q.Occupier) &&
+            q.Date < DateTime.Now.AddDays(-3));
+
+        // Count existing equipment quests
+        var existingCount = questDatabase.Count(q =>
+            q.Initiator == MERCHANT_GUILD_INITIATOR &&
+            !q.Deleted &&
+            string.IsNullOrEmpty(q.Occupier));
+
+        // Maintain 2-3 equipment quests
+        var targetCount = 2 + random.Next(2);
+
+        while (existingCount < targetCount)
+        {
+            CreateEquipmentPurchaseQuest(playerLevel);
+            existingCount++;
+        }
+    }
+
+    /// <summary>
+    /// Create an equipment purchase quest
+    /// </summary>
+    private static void CreateEquipmentPurchaseQuest(int playerLevel)
+    {
+        // Determine quest type (weapon, armor, accessory, shield)
+        var questTypeRoll = random.Next(100);
+        QuestTarget questTarget;
+        Equipment? targetEquipment = null;
+        string questTitle;
+        string questDescription;
+
+        if (questTypeRoll < 35)
+        {
+            // Weapon quest (35%)
+            questTarget = QuestTarget.BuyWeapon;
+            var weapons = EquipmentDatabase.GetOneHandedWeapons()
+                .Concat(EquipmentDatabase.GetTwoHandedWeapons())
+                .Where(w => w.Value >= playerLevel * 50 && w.Value <= playerLevel * 500)
+                .ToList();
+
+            if (weapons.Count > 0)
+            {
+                targetEquipment = weapons[random.Next(weapons.Count)];
+                questTitle = $"Acquire: {targetEquipment.Name}";
+                questDescription = $"The Merchant Guild seeks a {targetEquipment.Name}. Purchase one from any shop.";
+            }
+            else
+            {
+                return; // No suitable weapons found
+            }
+        }
+        else if (questTypeRoll < 65)
+        {
+            // Armor quest (30%)
+            questTarget = QuestTarget.BuyArmor;
+            var armor = EquipmentDatabase.GetAllArmor()
+                .Where(a => a.Value >= playerLevel * 40 && a.Value <= playerLevel * 400)
+                .ToList();
+
+            if (armor.Count > 0)
+            {
+                targetEquipment = armor[random.Next(armor.Count)];
+                questTitle = $"Acquire: {targetEquipment.Name}";
+                questDescription = $"The Merchant Guild needs a {targetEquipment.Name}. Purchase one from any shop.";
+            }
+            else
+            {
+                return; // No suitable armor found
+            }
+        }
+        else if (questTypeRoll < 85)
+        {
+            // Accessory quest (20%)
+            questTarget = QuestTarget.BuyAccessory;
+            var accessories = EquipmentDatabase.GetAccessories()
+                .Where(a => a.Value >= playerLevel * 60 && a.Value <= playerLevel * 600)
+                .ToList();
+
+            if (accessories.Count > 0)
+            {
+                targetEquipment = accessories[random.Next(accessories.Count)];
+                questTitle = $"Acquire: {targetEquipment.Name}";
+                questDescription = $"A collector is seeking a {targetEquipment.Name}. Purchase one for a reward.";
+            }
+            else
+            {
+                return; // No suitable accessories found
+            }
+        }
+        else
+        {
+            // Shield quest (15%)
+            questTarget = QuestTarget.BuyShield;
+            var shields = EquipmentDatabase.GetShields()
+                .Where(s => s.Value >= playerLevel * 30 && s.Value <= playerLevel * 300)
+                .ToList();
+
+            if (shields.Count > 0)
+            {
+                targetEquipment = shields[random.Next(shields.Count)];
+                questTitle = $"Acquire: {targetEquipment.Name}";
+                questDescription = $"The city guard needs a {targetEquipment.Name}. Purchase one from a shop.";
+            }
+            else
+            {
+                return; // No suitable shields found
+            }
+        }
+
+        if (targetEquipment == null) return;
+
+        // Determine difficulty based on item value relative to player level
+        var difficulty = (byte)Math.Min(4, Math.Max(1, (int)(targetEquipment.Value / (playerLevel * 100)) + 1));
+
+        var quest = new Quest
+        {
+            Title = questTitle,
+            Initiator = MERCHANT_GUILD_INITIATOR,
+            QuestType = QuestType.SingleQuest,
+            QuestTarget = questTarget,
+            Difficulty = difficulty,
+            Comment = questDescription,
+            Date = DateTime.Now,
+            MinLevel = Math.Max(1, playerLevel - 10),
+            MaxLevel = playerLevel + 20,
+            DaysToComplete = 7 + difficulty,
+            Reward = (byte)Math.Min(3, (int)difficulty), // Reward tier matches difficulty
+            RewardType = QuestRewardType.Money // Gold reward
+        };
+
+        // Add objective for equipment purchase
+        quest.Objectives.Add(new QuestObjective(
+            QuestObjectiveType.PurchaseEquipment,
+            $"Purchase a {targetEquipment.Name}",
+            1,
+            targetEquipment.Id.ToString(),
+            targetEquipment.Name
+        ));
+
+        questDatabase.Add(quest);
+    }
+
+    /// <summary>
+    /// Called when a player purchases equipment - checks if any quests are completed
+    /// </summary>
+    public static void OnEquipmentPurchased(Character player, Equipment equipment)
+    {
+        if (player == null || equipment == null) return;
+
+        var playerQuests = GetPlayerQuests(player.Name2);
+
+        foreach (var quest in playerQuests)
+        {
+            // Check if this is an equipment purchase quest
+            if (quest.QuestTarget == QuestTarget.BuyWeapon ||
+                quest.QuestTarget == QuestTarget.BuyArmor ||
+                quest.QuestTarget == QuestTarget.BuyAccessory ||
+                quest.QuestTarget == QuestTarget.BuyShield)
+            {
+                // Check if any objective matches this equipment
+                foreach (var objective in quest.Objectives.Where(o =>
+                    o.ObjectiveType == QuestObjectiveType.PurchaseEquipment && !o.IsComplete))
+                {
+                    // Match by equipment ID or name
+                    if (objective.TargetId == equipment.Id.ToString() ||
+                        objective.TargetName.Equals(equipment.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        objective.CurrentProgress = objective.RequiredProgress;
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ensure equipment quests exist alongside regular quests
+    /// </summary>
+    public static void EnsureEquipmentQuestsExist(int playerLevel)
+    {
+        var existingCount = questDatabase.Count(q =>
+            q.Initiator == MERCHANT_GUILD_INITIATOR &&
+            !q.Deleted);
+
+        if (existingCount == 0)
+        {
+            RefreshEquipmentQuests(playerLevel);
         }
     }
 

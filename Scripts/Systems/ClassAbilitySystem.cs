@@ -235,7 +235,7 @@ public static class ClassAbilitySystem
             Type = AbilityType.Buff,
             BaseHealing = 25,  // Scales with CON/WIS
             AttackBonus = 20,
-            Duration = 999,
+            Duration = 5,  // Fixed from 999 (infinite) - now 5 rounds
             SpecialEffect = "bloodlust",
             AvailableToClasses = new[] { CharacterClass.Barbarian }
         },

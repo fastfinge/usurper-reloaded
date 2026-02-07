@@ -100,6 +100,27 @@ public partial class MemorySystem
             .OrderByDescending(m => m.Timestamp)
             .ToList();
     }
+
+    /// <summary>
+    /// Get recent memories involving a specific player character
+    /// Used by NPCDialogueGenerator for memory-aware dialogue
+    /// </summary>
+    public List<MemoryEvent> GetRecentMemoriesWithPlayer(Player player, int maxDaysOld = 30, int maxResults = 5)
+    {
+        if (player == null) return new List<MemoryEvent>();
+
+        var playerName = player.Name2 ?? player.Name1;
+        if (string.IsNullOrEmpty(playerName)) return new List<MemoryEvent>();
+
+        var cutoff = DateTime.Now.AddDays(-maxDaysOld);
+
+        return memories
+            .Where(m => m.InvolvedCharacter == playerName && m.Timestamp >= cutoff)
+            .OrderByDescending(m => m.Importance)
+            .ThenByDescending(m => m.Timestamp)
+            .Take(maxResults)
+            .ToList();
+    }
     
     public List<MemoryEvent> GetRecentEvents(int hours = 24)
     {

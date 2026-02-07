@@ -214,7 +214,15 @@ public static class SpellSystem
         // Level 1 = min 5 mana, Level 10 = min 10 mana, Level 25 = min 15 mana
         int minimumCost = 5 + (spell.Level / 5);
 
-        return Math.Max(minimumCost, cost);
+        int finalCost = Math.Max(minimumCost, cost);
+
+        // Ocean's Memory spell effect - halves all mana costs
+        if (caster.HasOceanMemory)
+        {
+            finalCost = Math.Max(1, finalCost / 2);
+        }
+
+        return finalCost;
     }
     
     /// <summary>
@@ -1128,6 +1136,7 @@ public static class SpellSystem
             case 22: // Ocean's Memory - Half mana cost
                 result.SpecialEffect = "ocean_memory";
                 result.Duration = 999;
+                caster.HasOceanMemory = true;  // Set flag for half mana cost
                 result.Message += $" {caster.Name2} taps into infinite wisdom! Spells cost half mana!";
                 break;
 

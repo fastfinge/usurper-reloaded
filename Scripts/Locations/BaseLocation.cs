@@ -532,14 +532,16 @@ public abstract class BaseLocation
         if (currentPlayer == null || currentPlayer.Poison <= 0)
             return;
 
-        // Poison damage scales with poison level
-        // Base damage: 1-3 HP per turn, plus 1 HP per 10 poison levels
-        int baseDamage = 1 + new Random().Next(3);
-        int poisonBonus = currentPlayer.Poison / 10;
-        int totalDamage = baseDamage + poisonBonus;
+        // Poison damage scales with poison level and player level
+        // Base damage: 2-5 HP per turn, plus level scaling, plus poison intensity
+        var random = new Random();
+        int baseDamage = 2 + random.Next(4);  // 2-5 base damage
+        int levelScaling = currentPlayer.Level / 10;  // +1 per 10 levels
+        int poisonBonus = currentPlayer.Poison / 5;  // +1 per 5 poison intensity
+        int totalDamage = baseDamage + levelScaling + poisonBonus;
 
         // Cap damage at 10% of max HP to prevent instant deaths
-        int maxDamage = (int)Math.Max(1, currentPlayer.MaxHP / 10);
+        int maxDamage = (int)Math.Max(3, currentPlayer.MaxHP / 10);
         totalDamage = Math.Min(totalDamage, maxDamage);
 
         // Apply damage
@@ -1062,7 +1064,17 @@ public abstract class BaseLocation
         terminal.SetColor("darkgray");
         terminal.Write("]");
         terminal.SetColor("white");
-        terminal.Write("Cmds");
+        terminal.Write("Cmds  ");
+
+        // Show bug report hint
+        terminal.SetColor("darkgray");
+        terminal.Write("[");
+        terminal.SetColor("red");
+        terminal.Write("!");
+        terminal.SetColor("darkgray");
+        terminal.Write("]");
+        terminal.SetColor("white");
+        terminal.Write("Bug");
 
         terminal.WriteLine("");
         terminal.WriteLine("");
@@ -1111,6 +1123,9 @@ public abstract class BaseLocation
             case "?":
             case "HELP":
                 await ShowQuickCommandsHelp();
+                return (true, false);
+            case "!":
+                await BugReportSystem.ReportBug(terminal, currentPlayer);
                 return (true, false);
             default:
                 return (false, false);
@@ -1166,6 +1181,12 @@ public abstract class BaseLocation
             case "prefs":
             case "preferences":
                 await ShowPreferencesMenu();
+                return (true, false);
+
+            case "bug":
+            case "report":
+            case "bugreport":
+                await BugReportSystem.ReportBug(terminal, currentPlayer);
                 return (true, false);
 
             default:
@@ -1259,6 +1280,13 @@ public abstract class BaseLocation
         terminal.SetColor("white");
         terminal.WriteLine("- Open preferences menu                                  ║");
 
+        terminal.SetColor("bright_yellow");
+        terminal.Write("║  ");
+        terminal.SetColor("cyan");
+        terminal.Write("/bug      ");
+        terminal.SetColor("white");
+        terminal.WriteLine("        - Report a bug (opens GitHub)                        ║");
+
         terminal.SetColor("white");
         terminal.WriteLine("║                                                                              ║");
         terminal.WriteLine("║  Quick keys (single character):                                              ║");
@@ -1279,7 +1307,11 @@ public abstract class BaseLocation
         terminal.SetColor("cyan");
         terminal.Write("?  ");
         terminal.SetColor("white");
-        terminal.WriteLine("- This help          ║");
+        terminal.WriteLine("- This help    ");
+        terminal.SetColor("cyan");
+        terminal.Write("!  ");
+        terminal.SetColor("white");
+        terminal.WriteLine("- Report bug         ║");
 
         terminal.SetColor("bright_cyan");
         terminal.WriteLine("╚══════════════════════════════════════════════════════════════════════════════╝");
@@ -1974,146 +2006,175 @@ public abstract class BaseLocation
     /// </summary>
     protected virtual async Task InteractWithNPC(NPC npc)
     {
-        terminal.ClearScreen();
-        terminal.SetColor("bright_cyan");
-        terminal.WriteLine("╔══════════════════════════════════════════════════════════════════════════════╗");
-        terminal.SetColor("bright_yellow");
-        terminal.WriteLine($"║  Talking to: {npc.Name2,-60}  ║");
-        terminal.SetColor("bright_cyan");
-        terminal.WriteLine("╚══════════════════════════════════════════════════════════════════════════════╝");
-        terminal.WriteLine("");
+        bool stayInConversation = true;
+        bool isFirstGreeting = true;
 
-        // Show NPC info
-        terminal.SetColor("gray");
-        string sexDisplay = npc.Sex == CharacterSex.Female ? "Female" : "Male";
-        terminal.WriteLine($"  Level {npc.Level} {npc.Race} {sexDisplay} {npc.Class}");
-        terminal.WriteLine($"  {GetAlignmentDisplay(npc)}");
-        terminal.WriteLine("");
-
-        // Get NPC's greeting
-        string greeting = npc.GetGreeting(currentPlayer);
-        terminal.SetColor("yellow");
-        terminal.WriteLine($"  {npc.Name2} says:");
-        terminal.SetColor("white");
-        terminal.WriteLine($"  \"{greeting}\"");
-        terminal.WriteLine("");
-
-        // Show interaction options
-        terminal.SetColor("cyan");
-        terminal.WriteLine("  What do you want to do?");
-        terminal.WriteLine("");
-
-        terminal.SetColor("darkgray");
-        terminal.Write("  [");
-        terminal.SetColor("bright_green");
-        terminal.Write("1");
-        terminal.SetColor("darkgray");
-        terminal.Write("]");
-        terminal.SetColor("white");
-        terminal.WriteLine(" Chat with them");
-
-        terminal.SetColor("darkgray");
-        terminal.Write("  [");
-        terminal.SetColor("bright_yellow");
-        terminal.Write("2");
-        terminal.SetColor("darkgray");
-        terminal.Write("]");
-        terminal.SetColor("white");
-        terminal.WriteLine(" Ask about rumors");
-
-        terminal.SetColor("darkgray");
-        terminal.Write("  [");
-        terminal.SetColor("bright_cyan");
-        terminal.Write("3");
-        terminal.SetColor("darkgray");
-        terminal.Write("]");
-        terminal.SetColor("white");
-        terminal.WriteLine(" Ask about the dungeons");
-
-        // Only show challenge option if they're a fighter type
-        if (npc.Level > 0 && npc.IsAlive)
+        while (stayInConversation)
         {
+            terminal.ClearScreen();
+            terminal.SetColor("bright_cyan");
+            terminal.WriteLine("╔══════════════════════════════════════════════════════════════════════════════╗");
+            terminal.SetColor("bright_yellow");
+            terminal.WriteLine($"║  Talking to: {npc.Name2,-60}  ║");
+            terminal.SetColor("bright_cyan");
+            terminal.WriteLine("╚══════════════════════════════════════════════════════════════════════════════╝");
+            terminal.WriteLine("");
+
+            // Show NPC info
+            terminal.SetColor("gray");
+            string sexDisplay = npc.Sex == CharacterSex.Female ? "Female" : "Male";
+            terminal.WriteLine($"  Level {npc.Level} {npc.Race} {sexDisplay} {npc.Class}");
+            terminal.WriteLine($"  {GetAlignmentDisplay(npc)}");
+            terminal.WriteLine("");
+
+            // Get NPC's greeting (only on first interaction)
+            if (isFirstGreeting)
+            {
+                string greeting = npc.GetGreeting(currentPlayer);
+                terminal.SetColor("yellow");
+                terminal.WriteLine($"  {npc.Name2} says:");
+                terminal.SetColor("white");
+                terminal.WriteLine($"  \"{greeting}\"");
+                terminal.WriteLine("");
+                isFirstGreeting = false;
+            }
+
+            // Show interaction options
+            terminal.SetColor("cyan");
+            terminal.WriteLine("  What do you want to do?");
+            terminal.WriteLine("");
+
             terminal.SetColor("darkgray");
             terminal.Write("  [");
-            terminal.SetColor("bright_red");
-            terminal.Write("4");
+            terminal.SetColor("bright_green");
+            terminal.Write("1");
             terminal.SetColor("darkgray");
             terminal.Write("]");
             terminal.SetColor("white");
-            terminal.WriteLine(" Challenge to a duel");
-        }
+            terminal.WriteLine(" Chat with them");
 
-        // Full conversation option (visual novel style)
-        terminal.SetColor("darkgray");
-        terminal.Write("  [");
-        terminal.SetColor("bright_magenta");
-        terminal.Write("5");
-        terminal.SetColor("darkgray");
-        terminal.Write("]");
-        terminal.SetColor("bright_magenta");
-        terminal.WriteLine(" Have a deep conversation...");
+            terminal.SetColor("darkgray");
+            terminal.Write("  [");
+            terminal.SetColor("bright_yellow");
+            terminal.Write("2");
+            terminal.SetColor("darkgray");
+            terminal.Write("]");
+            terminal.SetColor("white");
+            terminal.WriteLine(" Ask about rumors");
 
-        terminal.WriteLine("");
-        terminal.SetColor("gray");
-        terminal.WriteLine("  [0] Walk away");
+            terminal.SetColor("darkgray");
+            terminal.Write("  [");
+            terminal.SetColor("bright_cyan");
+            terminal.Write("3");
+            terminal.SetColor("darkgray");
+            terminal.Write("]");
+            terminal.SetColor("white");
+            terminal.WriteLine(" Ask about the dungeons");
 
-        // Debug option
-        terminal.SetColor("dark_gray");
-        terminal.WriteLine("  [9] (DEBUG) View personality traits");
-        terminal.WriteLine("");
+            // Only show challenge option if they're a fighter type
+            if (npc.Level > 0 && npc.IsAlive)
+            {
+                terminal.SetColor("darkgray");
+                terminal.Write("  [");
+                terminal.SetColor("bright_red");
+                terminal.Write("4");
+                terminal.SetColor("darkgray");
+                terminal.Write("]");
+                terminal.SetColor("white");
+                terminal.WriteLine(" Challenge to a duel");
+            }
 
-        string action = await terminal.GetInput("Your choice: ");
+            // Full conversation option (visual novel style)
+            terminal.SetColor("darkgray");
+            terminal.Write("  [");
+            terminal.SetColor("bright_magenta");
+            terminal.Write("5");
+            terminal.SetColor("darkgray");
+            terminal.Write("]");
+            terminal.SetColor("bright_magenta");
+            terminal.WriteLine(" Have a deep conversation...");
 
-        switch (action)
-        {
-            case "1":
-                await ChatWithNPC(npc);
-                break;
-            case "2":
-                await AskForRumors(npc);
-                break;
-            case "3":
-                await AskAboutDungeons(npc);
-                break;
-            case "4":
-                if (npc.Level > 0 && npc.IsAlive)
-                {
-                    await ChallengeNPC(npc);
-                }
-                break;
-            case "5":
-                // Full visual novel style conversation
-                await UsurperRemake.Systems.VisualNovelDialogueSystem.Instance.StartConversation(currentPlayer, npc, terminal);
-                break;
-            case "9":
-                await ShowNPCDebugTraits(npc);
-                break;
-            default:
-                terminal.SetColor("gray");
-                terminal.WriteLine($"  You nod to {npc.Name2} and walk away.");
-                await Task.Delay(1000);
-                break;
+            terminal.WriteLine("");
+            terminal.SetColor("gray");
+            terminal.WriteLine("  [0] Walk away");
+
+            // Debug option
+            terminal.SetColor("dark_gray");
+            terminal.WriteLine("  [9] (DEBUG) View personality traits");
+            terminal.WriteLine("");
+
+            string action = await terminal.GetInput("Your choice: ");
+
+            switch (action)
+            {
+                case "1":
+                    await ChatWithNPC(npc);
+                    break;
+                case "2":
+                    await AskForRumors(npc);
+                    break;
+                case "3":
+                    await AskAboutDungeons(npc);
+                    break;
+                case "4":
+                    if (npc.Level > 0 && npc.IsAlive)
+                    {
+                        await ChallengeNPC(npc);
+                        stayInConversation = false; // Exit after combat
+                    }
+                    break;
+                case "5":
+                    // Full visual novel style conversation
+                    await UsurperRemake.Systems.VisualNovelDialogueSystem.Instance.StartConversation(currentPlayer, npc, terminal);
+                    break;
+                case "9":
+                    await ShowNPCDebugTraits(npc);
+                    break;
+                case "0":
+                default:
+                    // Show NPC's farewell using dynamic dialogue system
+                    string farewell = npc.GetFarewell(currentPlayer as Player);
+                    terminal.SetColor("yellow");
+                    terminal.WriteLine($"  {npc.Name2} says:");
+                    terminal.SetColor("white");
+                    terminal.WriteLine($"  \"{farewell}\"");
+                    terminal.WriteLine("");
+                    terminal.SetColor("gray");
+                    terminal.WriteLine($"  You nod and walk away.");
+                    await Task.Delay(1500);
+                    stayInConversation = false;
+                    break;
+            }
         }
     }
 
     /// <summary>
     /// Have a casual chat with an NPC
+    /// Uses the Dynamic NPC Dialogue System for personality-driven conversation
     /// </summary>
     private async Task ChatWithNPC(NPC npc)
     {
         terminal.WriteLine("");
 
-        // Generate contextual chat based on NPC personality and relationship
-        var chatLines = GenerateNPCChat(npc);
+        // Use the dynamic dialogue system for small talk
+        string smallTalk = npc.GetSmallTalk(currentPlayer as Player);
 
         terminal.SetColor("yellow");
         terminal.WriteLine($"  {npc.Name2} says:");
         terminal.SetColor("white");
+        terminal.WriteLine($"  \"{smallTalk}\"");
+        await Task.Delay(800);
 
-        foreach (var line in chatLines)
+        // Sometimes add a second line of dialogue for variety
+        if (new Random().NextDouble() < 0.5)
         {
-            terminal.WriteLine($"  \"{line}\"");
-            await Task.Delay(500);
+            await Task.Delay(600);
+            string moreTalk = npc.GetSmallTalk(currentPlayer as Player);
+            if (moreTalk != smallTalk) // Avoid repetition
+            {
+                terminal.WriteLine($"  \"{moreTalk}\"");
+                await Task.Delay(600);
+            }
         }
 
         // Small relationship boost for friendly chat

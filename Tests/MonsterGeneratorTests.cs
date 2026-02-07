@@ -380,4 +380,108 @@ public class MonsterGeneratorTests
     }
 
     #endregion
+
+    #region Mini-Boss/Champion Tests
+
+    [Fact]
+    public void GenerateMonster_MiniBossFlag_IsSet()
+    {
+        var miniBoss = MonsterGenerator.GenerateMonster(50, isBoss: false, isMiniBoss: true);
+        var normalMonster = MonsterGenerator.GenerateMonster(50, isBoss: false, isMiniBoss: false);
+
+        miniBoss.IsMiniBoss.Should().BeTrue();
+        miniBoss.IsBoss.Should().BeFalse();
+        normalMonster.IsMiniBoss.Should().BeFalse();
+    }
+
+    [Fact]
+    public void GenerateMonster_MiniBoss_HasChampionName()
+    {
+        var random = new Random(12345);
+        var miniBoss = MonsterGenerator.GenerateMonster(50, isBoss: false, isMiniBoss: true, random: random);
+
+        // Champion names should have special suffixes like "Champion", "Revenant", "Warchief", etc.
+        var championSuffixes = new[] { "Champion", "Revenant", "Warchief", "Elder", "Overlord",
+            "Titan", "Alpha", "Prime", "Abomination", "Hive Lord", "Archfey", "Leviathan",
+            "Seraph", "Nightlord" };
+
+        var hasChampionName = championSuffixes.Any(suffix =>
+            miniBoss.Name.Contains(suffix) || miniBoss.Name.StartsWith("Alpha ") ||
+            miniBoss.Name.StartsWith("Elder ") || miniBoss.Name.StartsWith("Prime "));
+
+        hasChampionName.Should().BeTrue($"Mini-boss name '{miniBoss.Name}' should have a champion suffix");
+    }
+
+    [Fact]
+    public void GenerateMonster_MiniBoss_HasBrightYellowColor()
+    {
+        var miniBoss = MonsterGenerator.GenerateMonster(50, isBoss: false, isMiniBoss: true);
+
+        miniBoss.MonsterColor.Should().Be("bright_yellow");
+    }
+
+    [Fact]
+    public void GenerateMonster_MiniBoss_HasMoreHPThanNormal()
+    {
+        // Use seeded random for reproducible comparison
+        var random1 = new Random(77777);
+        var random2 = new Random(77777);
+
+        var normalMonster = MonsterGenerator.GenerateMonster(50, isBoss: false, isMiniBoss: false, random: random1);
+        var miniBoss = MonsterGenerator.GenerateMonster(50, isBoss: false, isMiniBoss: true, random: random2);
+
+        // Mini-boss should have 1.5x HP multiplier
+        miniBoss.HP.Should().BeGreaterThan(normalMonster.HP);
+    }
+
+    [Fact]
+    public void GenerateMonster_MiniBoss_HasSpecialPhrase()
+    {
+        var miniBoss = MonsterGenerator.GenerateMonster(50, isBoss: false, isMiniBoss: true);
+
+        // Champion phrases are more dramatic than normal monster phrases
+        miniBoss.Phrase.Should().NotBeNullOrEmpty();
+        // Champions have unique dramatic phrases - just verify it has substance
+        miniBoss.Phrase.Length.Should().BeGreaterThan(10,
+            $"Mini-boss phrase should be substantial: '{miniBoss.Phrase}'");
+    }
+
+    [Fact]
+    public void GenerateMonsterGroup_CanSpawnMiniBoss()
+    {
+        var foundMiniBoss = false;
+
+        // Run many iterations - 10% chance means we should see some
+        for (int i = 0; i < 200; i++)
+        {
+            var monsters = MonsterGenerator.GenerateMonsterGroup(50);
+            if (monsters.Count == 1 && monsters[0].IsMiniBoss)
+            {
+                foundMiniBoss = true;
+                break;
+            }
+        }
+
+        foundMiniBoss.Should().BeTrue("Mini-boss encounters should occur ~10% of the time");
+    }
+
+    [Fact]
+    public void GenerateMonsterGroup_MiniBossEncounter_IsSingleMonster()
+    {
+        // Force mini-boss encounters by running many iterations
+        for (int i = 0; i < 200; i++)
+        {
+            var monsters = MonsterGenerator.GenerateMonsterGroup(50);
+            if (monsters.Any(m => m.IsMiniBoss))
+            {
+                // Mini-boss encounters should always be a single monster
+                monsters.Count.Should().Be(1, "Mini-boss encounters should be single monsters");
+                return;
+            }
+        }
+
+        // If we get here without finding a mini-boss, that's still a pass (unlikely but possible)
+    }
+
+    #endregion
 }

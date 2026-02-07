@@ -514,6 +514,9 @@ public class AdvancedMagicShopLocation : BaseLocation
             {
                 terminal.WriteLine($"{GameConfig.SuccessColor}{equipMessage}{GameConfig.TextColor}");
                 player.RecalculateStats();
+
+                // Check for equipment quest completion
+                QuestSystem.OnEquipmentPurchased(player, equipment);
             }
             else
             {

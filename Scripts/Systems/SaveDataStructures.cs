@@ -1227,6 +1227,7 @@ namespace UsurperRemake.Systems
         public int MarriedDays { get; set; }     // Days married (0 if not married)
         public bool Deleted { get; set; }
         public DateTime LastUpdated { get; set; }
+        public int CreatedOnGameDay { get; set; } // In-game day when relationship started (v0.26)
     }
 
 } 

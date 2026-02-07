@@ -42,7 +42,7 @@ public class CharacterCreationSystem
         try
         {
             // Step 1: Choose character name (used for both Name1 and Name2)
-            // In BBS door mode, the character name is locked to the BBS username
+            // Name may already be provided from save slot selection, or locked in BBS mode
             string characterName;
             if (DoorMode.IsInDoorMode)
             {
@@ -51,6 +51,13 @@ public class CharacterCreationSystem
                 terminal.WriteLine("(Name is set by your BBS login)", "gray");
                 terminal.WriteLine("");
                 await Task.Delay(1500);
+            }
+            else if (!string.IsNullOrWhiteSpace(playerName))
+            {
+                // Name already provided (from save slot dialog), use it directly
+                characterName = playerName;
+                terminal.WriteLine($"Creating character: {characterName}", "cyan");
+                terminal.WriteLine("");
             }
             else
             {
@@ -1063,14 +1070,13 @@ public class CharacterCreationSystem
     /// </summary>
     private async Task<bool> ConfirmChoice(string message, bool defaultYes)
     {
-        var defaultText = defaultYes ? "Y" : "N";
-        var response = await terminal.GetInputAsync($"{message}? ({defaultText}): ");
-        
+        var response = await terminal.GetInputAsync($"{message}? (Y/N): ");
+
         if (string.IsNullOrEmpty(response))
         {
             return defaultYes;
         }
-        
+
         return response.ToUpper() == "Y";
     }
     

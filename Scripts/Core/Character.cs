@@ -217,6 +217,7 @@ public class Character
     public bool UsedItem { get; set; }              // has used item in battle
     public bool IsDefending { get; set; } = false;
     public bool IsRaging { get; set; } = false;        // Barbarian rage state
+    public bool HasOceanMemory { get; set; } = false;  // Ocean's Memory spell - half mana cost
     public int SmiteChargesRemaining { get; set; } = 0; // Paladin daily smite uses left
 
     // Temporary combat bonuses from abilities
@@ -930,7 +931,8 @@ public class Character
             switch (kvp.Key)
             {
                 case StatusEffect.Poisoned:
-                    dmg = rnd.Next(1, 5); // 1d4
+                    // Poison scales with level: 2-5 base + 1 per 10 levels
+                    dmg = rnd.Next(2, 6) + (int)(Level / 10);
                     HP = Math.Max(0, HP - dmg);
                     messages.Add(($"{DisplayName} takes {dmg} poison damage!", "green"));
                     break;
@@ -1158,6 +1160,7 @@ public class Character
         ActiveStatuses.Clear();
         IsRaging = false;
         IsDefending = false;
+        HasOceanMemory = false;
         DamageAbsorptionPool = 0;
         MagicACBonus = 0;
     }

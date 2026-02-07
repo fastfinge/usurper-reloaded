@@ -1159,6 +1159,9 @@ public class DungeonLocation : BaseLocation
 
         // Quick status bar
         ShowQuickStatus(player);
+
+        // Show level eligibility notification
+        ShowLevelEligibilityMessage();
     }
 
     private void ShowDangerIndicators(DungeonRoom room)
@@ -1600,6 +1603,9 @@ public class DungeonLocation : BaseLocation
             terminal.WriteLine("");
         }
 
+        // Show level eligibility notification
+        ShowLevelEligibilityMessage();
+
         // Show floor-specific guidance
         ShowFloorGuidance(currentDungeonLevel);
 
@@ -1797,6 +1803,43 @@ public class DungeonLocation : BaseLocation
         }
     }
 
+    /// <summary>
+    /// Shows a message if the player is eligible for a level raise
+    /// </summary>
+    private void ShowLevelEligibilityMessage()
+    {
+        if (currentPlayer == null || currentPlayer.Level >= GameConfig.MaxLevel)
+            return;
+
+        long experienceNeeded = GetExperienceForLevel(currentPlayer.Level + 1);
+
+        if (currentPlayer.Experience >= experienceNeeded)
+        {
+            terminal.WriteLine("");
+            terminal.SetColor("bright_yellow");
+            terminal.WriteLine("╔══════════════════════════════════════════════════════════════════════════════╗");
+            terminal.SetColor("bright_green");
+            terminal.WriteLine("║     * You are eligible for a level raise! Visit your Master to advance! *    ║");
+            terminal.SetColor("bright_yellow");
+            terminal.WriteLine("╚══════════════════════════════════════════════════════════════════════════════╝");
+            terminal.WriteLine("");
+        }
+    }
+
+    /// <summary>
+    /// Experience required to have the specified level (cumulative)
+    /// </summary>
+    private static long GetExperienceForLevel(int level)
+    {
+        if (level <= 1) return 0;
+        long exp = 0;
+        for (int i = 2; i <= level; i++)
+        {
+            exp += (long)(Math.Pow(i, 1.8) * 50);
+        }
+        return exp;
+    }
+
     protected override string GetBreadcrumbPath()
     {
         var room = currentFloor?.GetCurrentRoom();
@@ -1900,6 +1943,8 @@ public class DungeonLocation : BaseLocation
                 return false;
 
             case "Q":
+                // Players can always leave to town - they may need to gear up, get companions, etc.
+                // Floor locking only prevents ascending to PREVIOUS floors within the dungeon
                 await NavigateToLocation(GameLocation.MainStreet);
                 return true;
 
@@ -3403,29 +3448,9 @@ public class DungeonLocation : BaseLocation
         var playerLevel = player?.Level ?? 1;
         int maxAccessible = Math.Min(maxDungeonLevel, playerLevel + 10);
 
-        // Check if this is a boss/seal floor that requires clearing
-        if (RequiresFloorClear() && !IsFloorCleared())
-        {
-            terminal.WriteLine("", "red");
-            if (IsOldGodFloor(currentDungeonLevel))
-            {
-                terminal.WriteLine("A powerful presence blocks your path.", "bright_red");
-                terminal.WriteLine("You must defeat the Old God on this floor before descending.", "yellow");
-            }
-            else if (SealFloors.Contains(currentDungeonLevel))
-            {
-                terminal.WriteLine("This floor holds an ancient Seal.", "bright_magenta");
-                terminal.WriteLine("You must claim the seal before you can descend.", "yellow");
-            }
-            else
-            {
-                terminal.WriteLine("A powerful presence blocks your path.", "bright_red");
-                terminal.WriteLine("You must defeat all enemies on this floor before descending.", "yellow");
-            }
-            terminal.WriteLine($"({GetRemainingClearInfo()})", "gray");
-            await Task.Delay(2500);
-            return;
-        }
+        // Players can always descend deeper into the dungeon, even from uncleared special floors
+        // They just can't ascend or leave until they clear the floor
+        // This allows players to continue deeper if they choose to skip a challenge temporarily
 
         // Check level restriction (player level +/- 10)
         if (currentDungeonLevel >= maxAccessible)
@@ -3612,26 +3637,28 @@ public class DungeonLocation : BaseLocation
         // Clamp to accessible range based on player level (+/- 10)
         targetLevel = Math.Max(minAccessible, Math.Min(maxAccessible, targetLevel));
 
-        // Check if trying to leave a boss/seal floor that requires clearing
-        if (targetLevel != currentDungeonLevel && RequiresFloorClear() && !IsFloorCleared())
+        // Check if trying to ASCEND from a boss/seal floor that requires clearing
+        // Players CAN descend (go deeper) but CANNOT ascend (retreat) until floor is cleared
+        if (targetLevel < currentDungeonLevel && RequiresFloorClear() && !IsFloorCleared())
         {
             terminal.WriteLine("", "red");
             if (IsOldGodFloor(currentDungeonLevel))
             {
-                terminal.WriteLine("A powerful presence blocks your path.", "bright_red");
-                terminal.WriteLine("You must defeat the Old God on this floor before leaving.", "yellow");
+                terminal.WriteLine("A powerful presence blocks your retreat.", "bright_red");
+                terminal.WriteLine("You must defeat the Old God on this floor before ascending.", "yellow");
             }
             else if (SealFloors.Contains(currentDungeonLevel))
             {
                 terminal.WriteLine("This floor holds an ancient Seal.", "bright_magenta");
-                terminal.WriteLine("You must claim the seal before you can leave.", "yellow");
+                terminal.WriteLine("You must claim the seal before you can ascend.", "yellow");
             }
             else
             {
-                terminal.WriteLine("A powerful presence blocks your path.", "bright_red");
-                terminal.WriteLine("You must defeat all enemies on this floor before leaving.", "yellow");
+                terminal.WriteLine("A powerful presence blocks your retreat.", "bright_red");
+                terminal.WriteLine("You must defeat all enemies on this floor before ascending.", "yellow");
             }
             terminal.WriteLine($"({GetRemainingClearInfo()})", "gray");
+            terminal.WriteLine("You may still descend to deeper floors.", "cyan");
             await Task.Delay(2500);
             return;
         }
@@ -9379,19 +9406,17 @@ public class DungeonLocation : BaseLocation
 
     /// <summary>
     /// Check if boss defeat drops an artifact based on floor level
+    /// NOTE: This is a legacy function. All artifacts now drop from Old God encounters
+    /// which are handled by OldGodBossSystem.HandleBossDefeated() using the boss's
+    /// ArtifactDropped property from OldGodsData.cs. Old God floors (25, 40, 55, 70, 85, 95, 100)
+    /// return early from TryOldGodBossEncounter, so this function only runs for non-Old-God bosses.
     /// </summary>
     private async Task CheckArtifactDrop(Character player, int floorLevel)
     {
-        // Artifacts drop from specific floor bosses (matching ArtifactSystem.DungeonFloor values)
-        var artifactFloors = new Dictionary<int, UsurperRemake.Systems.ArtifactType>
-        {
-            { 25, UsurperRemake.Systems.ArtifactType.CreatorsEye },      // Maelketh, God of War
-            { 40, UsurperRemake.Systems.ArtifactType.SoulweaversLoom },  // Shadow Realm (Noctura's Domain)
-            { 50, UsurperRemake.Systems.ArtifactType.ScalesOfLaw },      // Thorgrim, God of Law
-            { 60, UsurperRemake.Systems.ArtifactType.ShadowCrown },      // Noctura, Goddess of Shadows
-            { 70, UsurperRemake.Systems.ArtifactType.SunforgedBlade },   // Aurelion, God of Light
-            { 80, UsurperRemake.Systems.ArtifactType.Worldstone }        // Terravok, God of Earth
-        };
+        // All artifacts drop from Old Gods and are handled by OldGodBossSystem
+        // Old God floors: 25=Maelketh, 40=Veloura, 55=Thorgrim, 70=Noctura, 85=Aurelion, 95=Terravok, 100=Manwe
+        // Non-Old-God secret boss floors (50, 75, 99) don't have unique artifacts
+        var artifactFloors = new Dictionary<int, UsurperRemake.Systems.ArtifactType>();
 
         if (!artifactFloors.TryGetValue(floorLevel, out var artifactType))
             return;
