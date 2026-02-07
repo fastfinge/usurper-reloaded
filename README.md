@@ -1,6 +1,6 @@
 # Usurper Reborn
 
-## ALPHA v0.25.2 - Boss System Fix
+## ALPHA v0.25.3 - Old God Persistence
 
 **FREE AND OPEN SOURCE SOFTWARE - GPL v2 Licensed**
 
@@ -594,4 +594,4 @@ Join our Discord server for discussions, feedback, and updates:
 
 ---
 
-**Status**: ALPHA v0.25.2 - Boss System Fix
+**Status**: ALPHA v0.25.3 - Old God Persistence

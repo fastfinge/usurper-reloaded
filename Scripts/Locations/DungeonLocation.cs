@@ -45,6 +45,10 @@ public class DungeonLocation : BaseLocation
 
     public override async Task EnterLocation(Character player, TerminalEmulator term)
     {
+        // CRITICAL: Clear teammates list at the start to prevent leaking from other saves
+        // The list will be rebuilt by AddCompanionsToParty() and RestoreNPCTeammates()
+        teammates.Clear();
+
         // Initialize dungeon level based on the actual player entering
         var playerLevel = player?.Level ?? 1;
         currentDungeonLevel = Math.Max(1, playerLevel);
