@@ -582,7 +582,7 @@ public partial class MagicShopLocation : BaseLocation
             
             DisplayMessage("");
             DisplayMessage("Press Enter to continue...", "yellow");
-            Console.ReadKey();
+            terminal.GetInputSync("");
             DisplayMagicShopMenu(player);
             return;
         }
@@ -631,7 +631,7 @@ public partial class MagicShopLocation : BaseLocation
     {
         DisplayMessage("");
         DisplayMessage("Enter Item # to buy: ", "yellow", false);
-        string input = Console.ReadLine();
+        string input = terminal.GetInputSync("");
 
         if (int.TryParse(input, out int itemNumber) && itemNumber > 0 && itemNumber <= _magicInventory.Count)
         {
@@ -674,7 +674,7 @@ public partial class MagicShopLocation : BaseLocation
                 DisplayMessage($"Buy the {item.Name} for {adjustedPrice:N0} gold (was {item.Value:N0})? (Y/N): ", "yellow", false);
             else
                 DisplayMessage($"Buy the {item.Name} for {adjustedPrice:N0} gold? (Y/N): ", "yellow", false);
-            var confirm = Console.ReadKey().KeyChar.ToString().ToUpper();
+            var confirm = terminal.GetInputSync("").ToUpper();
             DisplayMessage("");
 
             if (confirm == "Y")
@@ -700,7 +700,7 @@ public partial class MagicShopLocation : BaseLocation
                     
                     // Ask if they want to equip it immediately
                     DisplayMessage($"Start to use the {item.Name} immediately? (Y/N): ", "yellow", false);
-                    var useNow = Console.ReadKey().KeyChar.ToString().ToUpper();
+                    var useNow = terminal.GetInputSync("").ToUpper();
                     DisplayMessage("");
                     
                     if (useNow == "Y")
@@ -751,7 +751,7 @@ public partial class MagicShopLocation : BaseLocation
 
         DisplayMessage("");
         DisplayMessage("Enter item # to sell (0 to cancel): ", "yellow", false);
-        string input = Console.ReadLine();
+        string input = terminal.GetInputSync("");
 
         if (int.TryParse(input, out int itemIndex) && itemIndex > 0 && itemIndex <= player.Inventory.Count)
         {
@@ -762,7 +762,7 @@ public partial class MagicShopLocation : BaseLocation
             if (item.Type == ObjType.Magic || item.MagicType != MagicItemType.None)
             {
                 DisplayMessage($"Sell {item.Name} for {sellPrice:N0} gold? (Y/N): ", "yellow", false);
-                var confirm = Console.ReadKey().KeyChar.ToString().ToUpper();
+                var confirm = terminal.GetInputSync("").ToUpper();
                 DisplayMessage("");
 
                 if (confirm == "Y")
@@ -812,7 +812,7 @@ public partial class MagicShopLocation : BaseLocation
         long identifyCost = GetIdentificationCost(player.Level);
         DisplayMessage($"Identification costs {identifyCost:N0} gold per item.", "gray");
         DisplayMessage("Enter item # to identify (0 to cancel): ", "yellow", false);
-        string input = Console.ReadLine();
+        string input = terminal.GetInputSync("");
 
         if (int.TryParse(input, out int itemIndex) && itemIndex > 0 && itemIndex <= unidentifiedItems.Count)
         {
@@ -824,7 +824,7 @@ public partial class MagicShopLocation : BaseLocation
 
             var item = unidentifiedItems[itemIndex - 1];
             DisplayMessage($"Identify {item.Name} for {identifyCost:N0} gold? (Y/N): ", "yellow", false);
-            var confirm = Console.ReadKey().KeyChar.ToString().ToUpper();
+            var confirm = terminal.GetInputSync("").ToUpper();
             DisplayMessage("");
 
             if (confirm == "Y")
@@ -1004,7 +1004,7 @@ public partial class MagicShopLocation : BaseLocation
         DisplayMessage("");
         DisplayMessage("Choose category (0 to cancel): ", "yellow", false);
 
-        string input = Console.ReadLine();
+        string input = terminal.GetInputSync("");
         if (!int.TryParse(input, out int choice) || choice == 0)
             return;
 
@@ -1100,7 +1100,7 @@ public partial class MagicShopLocation : BaseLocation
 
             DisplayMessage("");
             DisplayMessage("(N)ext page  (P)revious page  (Q)uit browsing", "yellow");
-            var key = Console.ReadKey(true).KeyChar.ToString().ToUpper();
+            var key = terminal.GetInputSync("").ToUpper();
 
             if (key == "N" && currentPage < totalPages - 1)
                 currentPage++;
@@ -1147,7 +1147,7 @@ public partial class MagicShopLocation : BaseLocation
 
         DisplayMessage("");
         DisplayMessage("Enter item # to uncurse (0 to cancel): ", "yellow", false);
-        string input = Console.ReadLine();
+        string input = terminal.GetInputSync("");
 
         if (!int.TryParse(input, out int itemIndex) || itemIndex <= 0 || itemIndex > cursedItems.Count)
             return;
@@ -1165,7 +1165,7 @@ public partial class MagicShopLocation : BaseLocation
 
         DisplayMessage("");
         DisplayMessage($"Remove the curse from {targetItem.Name} for {cost:N0} gold? (Y/N): ", "yellow", false);
-        var confirm = Console.ReadKey().KeyChar.ToString().ToUpper();
+        var confirm = terminal.GetInputSync("").ToUpper();
         DisplayMessage("");
 
         if (confirm == "Y")
@@ -1267,7 +1267,7 @@ public partial class MagicShopLocation : BaseLocation
         DisplayMessage("");
         DisplayMessage("Choose enchantment type (0 to cancel): ", "yellow", false);
 
-        string input = Console.ReadLine();
+        string input = terminal.GetInputSync("");
         if (!int.TryParse(input, out int enchantChoice) || enchantChoice <= 0 || enchantChoice > 6)
             return;
 
@@ -1305,7 +1305,7 @@ public partial class MagicShopLocation : BaseLocation
 
         DisplayMessage("");
         DisplayMessage("Choose item to enchant (0 to cancel): ", "yellow", false);
-        input = Console.ReadLine();
+        input = terminal.GetInputSync("");
 
         if (!int.TryParse(input, out int itemIndex) || itemIndex <= 0 || itemIndex > enchantableItems.Count)
             return;
@@ -1328,14 +1328,14 @@ public partial class MagicShopLocation : BaseLocation
             DisplayMessage("Choose stat to enhance:", "cyan");
             DisplayMessage("(1) Strength  (2) Defence  (3) Dexterity  (4) Wisdom  (5) Attack", "gray");
             DisplayMessage("Choice: ", "yellow", false);
-            input = Console.ReadLine();
+            input = terminal.GetInputSync("");
             if (!int.TryParse(input, out statChoice) || statChoice <= 0 || statChoice > 5)
                 return;
         }
 
         DisplayMessage("");
         DisplayMessage($"Enchant {targetItem.Name} for {cost:N0} gold? (Y/N): ", "yellow", false);
-        var confirm = Console.ReadKey().KeyChar.ToString().ToUpper();
+        var confirm = terminal.GetInputSync("").ToUpper();
         DisplayMessage("");
 
         if (confirm != "Y")

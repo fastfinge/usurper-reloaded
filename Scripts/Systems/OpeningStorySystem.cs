@@ -36,18 +36,31 @@ namespace UsurperRemake.Systems
             }
 
             // Check for space press during delay
+            // In BBS door mode, Console.KeyAvailable is not available (stdin is redirected)
+            bool canCheckConsole = !UsurperRemake.BBS.DoorMode.IsInDoorMode;
+
             int elapsed = 0;
             const int checkInterval = 50;
 
             while (elapsed < milliseconds)
             {
-                if (Console.KeyAvailable)
+                if (canCheckConsole)
                 {
-                    var key = Console.ReadKey(true);
-                    if (key.Key == ConsoleKey.Spacebar)
+                    try
                     {
-                        _skipMode = true;
-                        return;
+                        if (Console.KeyAvailable)
+                        {
+                            var key = Console.ReadKey(true);
+                            if (key.Key == ConsoleKey.Spacebar)
+                            {
+                                _skipMode = true;
+                                return;
+                            }
+                        }
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        canCheckConsole = false; // Console not available, stop checking
                     }
                 }
                 await Task.Delay(checkInterval);
