@@ -207,6 +207,29 @@ public partial class GameEngine : Node
         terminal.WriteLine($"Welcome, {playerName}!");
         terminal.WriteLine("");
 
+        // SysOp check - offer admin console before loading any saves
+        if (UsurperRemake.BBS.DoorMode.IsSysOp)
+        {
+            terminal.SetColor("bright_yellow");
+            terminal.WriteLine("╔═══════════════════════════════════════════════════════════════════╗");
+            terminal.WriteLine("║  SysOp detected! Press [%] for Administration Console            ║");
+            terminal.WriteLine("╚═══════════════════════════════════════════════════════════════════╝");
+            terminal.SetColor("gray");
+            terminal.WriteLine("(Or press Enter to continue to the game)");
+            terminal.WriteLine("");
+
+            terminal.SetColor("white");
+            var sysopChoice = await terminal.GetInput("Your choice: ");
+
+            if (sysopChoice == "%")
+            {
+                await ShowSysOpConsole();
+                // After SysOp console, restart the door mode flow
+                await RunBBSDoorMode();
+                return;
+            }
+        }
+
         // Check if this BBS user has an existing save
         var existingSave = SaveSystem.Instance.GetMostRecentSave(playerName);
 

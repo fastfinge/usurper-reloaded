@@ -366,9 +366,18 @@ SysOps with security level 100 or higher can access an in-game administration co
 
 ### Accessing the Console
 
-From the **Main Menu** (before entering the game), press `%` to open the SysOp Console. This option only appears for users with SysOp privileges (security level 100+) in BBS door mode.
+When you connect to the door as a SysOp (security level 100+), you'll see a prompt at the **BBS Door welcome screen** (before character selection):
 
-> **Note:** The SysOp Console is accessible from the Main Menu rather than Main Street. This allows SysOps to manage the game, reset data, and apply updates without loading any player saves first.
+```
+╔═══════════════════════════════════════════════════════════════════╗
+║  SysOp detected! Press [%] for Administration Console            ║
+╚═══════════════════════════════════════════════════════════════════╝
+(Or press Enter to continue to the game)
+```
+
+Press `%` to open the SysOp Console, or press Enter to continue to the normal game.
+
+> **Note:** The SysOp Console is accessible BEFORE any player saves are loaded. This allows SysOps to manage the game, reset data, delete players, and apply updates without any game state interference.
 
 ### Available Functions
 
