@@ -202,36 +202,16 @@ public partial class GameEngine : Node
         terminal.WriteLine("║                USURPER REBORN - Halls of Avarice                            ║");
         terminal.SetColor("bright_cyan");
         terminal.WriteLine("╚══════════════════════════════════════════════════════════════════════════════╝");
+        terminal.SetColor("gray");
+        terminal.WriteLine($"  v{GameConfig.Version}");
         terminal.WriteLine("");
         terminal.SetColor("white");
         terminal.WriteLine($"Welcome, {playerName}!");
         terminal.WriteLine("");
 
-        // SysOp check - offer admin console before loading any saves
-        if (UsurperRemake.BBS.DoorMode.IsSysOp)
-        {
-            terminal.SetColor("bright_yellow");
-            terminal.WriteLine("╔═══════════════════════════════════════════════════════════════════╗");
-            terminal.WriteLine("║  SysOp detected! Press [%] for Administration Console            ║");
-            terminal.WriteLine("╚═══════════════════════════════════════════════════════════════════╝");
-            terminal.SetColor("gray");
-            terminal.WriteLine("(Or press Enter to continue to the game)");
-            terminal.WriteLine("");
-
-            terminal.SetColor("white");
-            var sysopChoice = await terminal.GetInput("Your choice: ");
-
-            if (sysopChoice == "%")
-            {
-                await ShowSysOpConsole();
-                // After SysOp console, restart the door mode flow
-                await RunBBSDoorMode();
-                return;
-            }
-        }
-
         // Check if this BBS user has an existing save
         var existingSave = SaveSystem.Instance.GetMostRecentSave(playerName);
+        bool isSysOp = UsurperRemake.BBS.DoorMode.IsSysOp;
 
         if (existingSave != null)
         {
@@ -244,6 +224,12 @@ public partial class GameEngine : Node
             terminal.SetColor("bright_white");
             terminal.WriteLine("[L] Load existing character");
             terminal.WriteLine("[N] Create new character (WARNING: Overwrites existing!)");
+            if (isSysOp)
+            {
+                terminal.SetColor("bright_yellow");
+                terminal.WriteLine("[%] SysOp Administration Console");
+                terminal.SetColor("bright_white");
+            }
             terminal.WriteLine("[Q] Quit");
             terminal.WriteLine("");
 
@@ -281,6 +267,19 @@ public partial class GameEngine : Node
                     }
                     break;
 
+                case "%":
+                    if (isSysOp)
+                    {
+                        await ShowSysOpConsole();
+                        await RunBBSDoorMode();
+                        return;
+                    }
+                    else
+                    {
+                        await LoadSaveByFileName(existingSave.FileName);
+                    }
+                    break;
+
                 case "Q":
                     IsIntentionalExit = true;
                     terminal.WriteLine("Goodbye!", "cyan");
@@ -296,13 +295,44 @@ public partial class GameEngine : Node
         else
         {
             // No existing character - create new one
-            terminal.SetColor("yellow");
-            terminal.WriteLine("No existing character found. Let's create one!");
+            terminal.SetColor("bright_white");
+            terminal.WriteLine("[N] Create new character");
+            if (isSysOp)
+            {
+                terminal.SetColor("bright_yellow");
+                terminal.WriteLine("[%] SysOp Administration Console");
+                terminal.SetColor("bright_white");
+            }
+            terminal.WriteLine("[Q] Quit");
             terminal.WriteLine("");
-            await Task.Delay(1500);
 
-            // CreateNewGame handles character creation and enters the game world
-            await CreateNewGame(playerName);
+            var choice = await terminal.GetInput("Your choice: ");
+
+            switch (choice.ToUpper())
+            {
+                case "%":
+                    if (isSysOp)
+                    {
+                        await ShowSysOpConsole();
+                        await RunBBSDoorMode();
+                        return;
+                    }
+                    else
+                    {
+                        await CreateNewGame(playerName);
+                    }
+                    break;
+
+                case "Q":
+                    IsIntentionalExit = true;
+                    terminal.WriteLine("Goodbye!", "cyan");
+                    await Task.Delay(1000);
+                    break;
+
+                default:
+                    await CreateNewGame(playerName);
+                    break;
+            }
         }
     }
 
@@ -614,6 +644,8 @@ public partial class GameEngine : Node
         terminal.ShowANSIArt("USURPER");
         terminal.SetColor("bright_yellow");
         terminal.WriteLine("USURPER REBORN - Halls of Avarice");
+        terminal.SetColor("gray");
+        terminal.WriteLine($"v{GameConfig.Version}");
         terminal.WriteLine("");
         terminal.SetColor("gray");
         terminal.WriteLine("1993 - Original by Jakob Dangarden");
@@ -641,6 +673,8 @@ public partial class GameEngine : Node
             terminal.WriteLine("║                USURPER REBORN - Halls of Avarice                            ║");
             terminal.SetColor("bright_red");
             terminal.WriteLine("╚══════════════════════════════════════════════════════════════════════════════╝");
+            terminal.SetColor("gray");
+            terminal.WriteLine($"  v{GameConfig.Version}");
             terminal.WriteLine("");
 
             // Menu options with classic BBS style
